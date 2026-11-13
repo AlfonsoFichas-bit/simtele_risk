@@ -1,0 +1,19 @@
+/* Project theme. Utilities still come from Tailwind; this file only sets
+   design tokens and a couple of base-layer defaults. */
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  ::selection {
+    background-color: rgb(34 211 238 / 0.3);
+  }
+}

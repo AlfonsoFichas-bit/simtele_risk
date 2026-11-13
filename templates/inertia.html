@@ -1,0 +1,11 @@
+{% extends inertia_layout %}
+
+{% comment %}
+  Inertia v3 first-load format: the page object travels in a JSON script tag
+  and the app mounts on the empty div below it. The server escapes <, > and &
+  before embedding the JSON.
+{% endcomment %}
+{% block inertia %}
+  <script data-page="app" type="application/json">{{ page|safe }}</script>
+  <div id="app"></div>
+{% endblock inertia %}

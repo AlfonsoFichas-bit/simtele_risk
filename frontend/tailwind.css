@@ -1,0 +1,11 @@
+/*
+ * Tailwind CSS v4 entry point.
+ *
+ * `source(none)` turns off automatic project-wide scanning and keeps only the
+ * paths declared below. That way the generated CSS is not polluted by strings
+ * from `docs/`, Python files, or the already-compiled assets in `static/build/`.
+ */
+@import "tailwindcss" source(none);
+
+@source "./**/*.{vue,ts}";
+@source "../templates";
