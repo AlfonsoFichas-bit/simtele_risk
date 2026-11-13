@@ -1,0 +1,8 @@
+# Folders
+.agents
+openspec
+
+# IDE
+.idea
+.vscode
+.zed
