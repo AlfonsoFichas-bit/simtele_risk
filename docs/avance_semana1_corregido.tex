@@ -1,11 +1,11 @@
 \documentclass[a4paper,12pt]{article}
 
-\usepackage[top = 2.5cm, bottom = 2.5cm, left = 2.5cm, right = 2.5cm]{geometry} 
+\usepackage[top = 2.5cm, bottom = 2.5cm, left = 2.5cm, right = 2.5cm]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{multirow}
 \usepackage{booktabs}
-\usepackage{graphicx} 
+\usepackage{graphicx}
 \usepackage{setspace}
 \setlength{\parindent}{0in}
 \usepackage{float}
@@ -14,12 +14,12 @@
 \usepackage{amssymb}
 \usepackage{fancyhdr}
 \usepackage{array}
+\usepackage{adjustbox}
 
 \pagestyle{fancy}
 \fancyhf{}
 \lhead{\footnotesize Métodos Numéricos: Avance Semana 1 (SIMTELE-RISK)}
-\rhead{\footnotesize R. Choque}
-\cfoot{\footnotesize \thepage} 
+\cfoot{\footnotesize \thepage}
 
 \renewcommand{\figurename}{Figura}
 \renewcommand{\tablename}{Tabla}
@@ -46,8 +46,8 @@ Estudiantes: \\
 	{\Large \bf  Proyecto Integrador SIMTELE-RISK }
 	\vspace{2mm}
 	{\bf Avance Semana 1}
-		
-\end{center}  
+
+\end{center}
 
 \section{Planteamiento Matemático de los Cuatro Módulos y Supuestos}
 
@@ -120,7 +120,9 @@ Cada caso de estudio modela un fenómeno operativo sintético del sistema de tra
 \begin{table}[H]
 \centering
 \scriptsize
-\begin{tabular}{>{\bfseries}p{2.2cm} p{4.0cm} p{4.0cm} p{4.0cm}}
+\setlength{\tabcolsep}{3pt}
+\begin{adjustbox}{max width=\textwidth}
+\begin{tabular}{>{\bfseries}p{2.0cm} p{4.1cm} p{4.1cm} p{4.1cm}}
 \toprule
 Módulo & Escenario NORMAL & Escenario ESTRÉS & Escenario MAL CONDICIONADO \\
 \midrule
@@ -133,6 +135,7 @@ Módulo & Escenario NORMAL & Escenario ESTRÉS & Escenario MAL CONDICIONADO \\
 4. Señales de sensores & 7 nodos equiespaciados en $[0,6]$ sobre $y(t)=\text{lectura}$, ruido $0.01$. & 14 nodos con laguna de telemetría $[3.5,6.8]$ (35\% pérdida), ruido $0.05$. & 11 nodos en $[-1,1]$ con espaciamiento mínimo $0.002$ (fenómeno de Runge). \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \caption{Matriz de definición de los 3 escenarios obligatorios para los 4 casos de estudio (alineada con el código).}
 \end{table}
 
@@ -202,35 +205,41 @@ Error absoluto en $k=1$: $E_{\text{abs}}^{(1)} = \|x^{(1)} - x^*\|_\infty = |1.1
 \begin{table}[H]
 \centering
 \scriptsize
-\begin{tabular}{lccccccc}
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{adjustbox}{max width=\textwidth}
+\begin{tabular}{@{}p{2.3cm} c p{3.3cm} c c c c c@{}}
 \toprule
-\textbf{Escenario / Método} & \textbf{Iter.} & \textbf{Sol. Aprox. $[x_1, x_2, x_3, x_4]$} & $\mathbf{E_{\text{abs}}}$ & $\mathbf{E_{\text{rel}}}$ & $\mathbf{E_{\%}}$ & \textbf{Residuo} & \textbf{Conv.} \\
+\textbf{Método} & \textbf{Iter.} & \textbf{Sol. aprox. $[x_1,\dots,x_4]$} & $\mathbf{E_{\text{abs}}}$ & $\mathbf{E_{\text{rel}}}$ & $\mathbf{E_{\%}}$ & \textbf{Residuo} & \textbf{Conv.} \\
 \midrule
-\multicolumn{8}{l}{\textbf{ESCENARIO 1: NORMAL} ($\kappa_\infty(A) = 3.1373$, SPD = Sí, $\text{tol}=10^{-6}$)} \\
-Factorización LU & 1 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $0.00 \times 10^{0}$ & Sí \\
-Jacobi & 17 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $1.70 \times 10^{-7}$ & $9.00 \times 10^{-8}$ & $9.00 \times 10^{-6}\%$ & $2.27 \times 10^{-6}$ & Sí \\
-Gauss-Seidel & 7 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $1.20 \times 10^{-7}$ & $6.00 \times 10^{-8}$ & $6.00 \times 10^{-6}\%$ & $1.05 \times 10^{-6}$ & Sí \\
-Gradiente Conjugado & 4 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $0.00 \times 10^{0}$ & Sí \\
+\multicolumn{8}{@{}l}{\textbf{ESCENARIO 1: NORMAL} ($\kappa_\infty(A)=3.1373$, SPD = Sí, $\text{tol}=10^{-6}$)} \\
+Factorización LU & 1 & $[1.000000,\ 2.000000,\ 1.500000,\ 0.500000]$ & $0$ & $0$ & $0\%$ & $0$ & Sí \\
+Jacobi & 17 & $[1.000000,\ 2.000000,\ 1.500000,\ 0.500000]$ & $1.70\times10^{-7}$ & $9.00\times10^{-8}$ & $9.00\times10^{-6}\%$ & $2.27\times10^{-6}$ & Sí \\
+Gauss-Seidel & 7 & $[1.000000,\ 2.000000,\ 1.500000,\ 0.500000]$ & $1.20\times10^{-7}$ & $6.00\times10^{-8}$ & $6.00\times10^{-6}\%$ & $1.05\times10^{-6}$ & Sí \\
+Grad. Conjugado & 4 & $[1.000000,\ 2.000000,\ 1.500000,\ 0.500000]$ & $0$ & $0$ & $0\%$ & $0$ & Sí \\
 \midrule
-\multicolumn{8}{l}{\textbf{ESCENARIO 2: ESTRÉS} ($\kappa_\infty(A) = 3.0000$, SPD = Sí, mayor acoplamiento fuera de diagonal)} \\
-Factorización LU & 1 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $0.00 \times 10^{0}$ & Sí \\
-Jacobi & 52 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $4.00 \times 10^{-7}$ & $2.00 \times 10^{-7}$ & $2.00 \times 10^{-5}\%$ & $2.79 \times 10^{-6}$ & Sí \\
-Gauss-Seidel & 10 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $2.80 \times 10^{-7}$ & $1.40 \times 10^{-7}$ & $1.40 \times 10^{-5}\%$ & $1.00 \times 10^{-6}$ & Sí \\
-Gradiente Conjugado & 2 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $0.00 \times 10^{0}$ & Sí \\
+\multicolumn{8}{@{}l}{\textbf{ESCENARIO 2: ESTRÉS} ($\kappa_\infty(A)=3.0000$, SPD = Sí, mayor acoplamiento fuera de diagonal)} \\
+Factorización LU & 1 & $[1.000000,\ 2.000000,\ 1.500000,\ 0.500000]$ & $0$ & $0$ & $0\%$ & $0$ & Sí \\
+Jacobi & 52 & $[1.000000,\ 2.000000,\ 1.500000,\ 0.500000]$ & $4.00\times10^{-7}$ & $2.00\times10^{-7}$ & $2.00\times10^{-5}\%$ & $2.79\times10^{-6}$ & Sí \\
+Gauss-Seidel & 10 & $[1.000000,\ 2.000000,\ 1.500000,\ 0.500000]$ & $2.80\times10^{-7}$ & $1.40\times10^{-7}$ & $1.40\times10^{-5}\%$ & $1.00\times10^{-6}$ & Sí \\
+Grad. Conjugado & 2 & $[1.000000,\ 2.000000,\ 1.500000,\ 0.500000]$ & $0$ & $0$ & $0\%$ & $0$ & Sí \\
 \midrule
-\multicolumn{8}{l}{\textbf{ESCENARIO 3: MAL CONDICIONADO} ($\kappa_\infty(A) = 792.00$, SPD = Sí, sin dominancia diagonal)} \\
-Factorización LU & 1 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $0.00 \times 10^{0}$ & Sí \\
+\multicolumn{8}{@{}l}{\textbf{ESCENARIO 3: MAL CONDICIONADO} ($\kappa_\infty(A)=792.00$, SPD = Sí, sin dominancia diagonal)} \\
+Factorización LU & 1 & $[1.000000,\ 2.000000,\ 1.500000,\ 0.500000]$ & $0$ & $0$ & $0\%$ & $0$ & Sí \\
 Jacobi & 26 & Diverge (overflow) & $>10^{10}$ & $>10^{10}$ & $>10^{12}\%$ & $>10^{10}$ & \textbf{No} \\
-Gauss-Seidel & 100 & $[1.000807, 2.132507, 1.431187, 0.437485]$ & $1.33 \times 10^{-1}$ & $6.63 \times 10^{-2}$ & $6.63\%$ & $3.92 \times 10^{-3}$ & \textbf{No} \\
-Gradiente Conjugado & 4 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $2.00 \times 10^{-8}$ & Sí \\
+Gauss-Seidel & 100 & $[1.000807,\ 2.132507,\ 1.431187,\ 0.437485]$ & $1.33\times10^{-1}$ & $6.63\times10^{-2}$ & $6.63\%$ & $3.92\times10^{-3}$ & \textbf{No} \\
+Grad. Conjugado & 4 & $[1.000000,\ 2.000000,\ 1.500000,\ 0.500000]$ & $0$ & $0$ & $0\%$ & $2.00\times10^{-8}$ & Sí \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \caption{Resultados experimentales de los 4 métodos sobre los 3 escenarios del Módulo 2 (valores reales del programa).}
 \end{table}
 
 \begin{table}[H]
 \centering
 \footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{adjustbox}{max width=\textwidth}
 \begin{tabular}{lccccc}
 \toprule
 \textbf{Escenario} & $\mathbf{\kappa_\infty(A)}$ & \textbf{Perturbación $\|\delta b\|_\infty / \|b\|_\infty$} & \textbf{Efecto $\|\delta x\|_\infty / \|x^*\|_\infty$} & \textbf{Amplificación Empírica (FA)} \\
@@ -240,6 +249,7 @@ Gradiente Conjugado & 4 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \ti
 3. MAL CONDICIONADO & $792.0000$ & $2.01 \times 10^{-4}$ & $1.00 \times 10^{-1}$ ($10.0\%$) & $\mathbf{496.5\times}$ \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \caption{Análisis experimental de sensibilidad ante una perturbación alternada $\delta b = [\pm 10^{-3}]$ en las lecturas.}
 \end{table}
 
