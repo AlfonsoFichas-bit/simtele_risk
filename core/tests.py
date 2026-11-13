@@ -79,6 +79,81 @@ class DashboardViewTests(InertiaTestCase):
         corrida = self.props()["corrida"]
         self.assertEqual(corrida["simulacion_id"], sim.id)
         self.assertEqual(corrida["tipo_escenario"], "ESTRES")
+        self.assertIn("sensibilidad", corrida)
+
+    def test_relanzar_simulacion_crea_nueva_con_mismos_parametros(self):
+        # Crear simulación original con parámetros específicos
+        self.client.post("/modulo-2/ejecutar", {
+            "escenario": "ESTRES",
+            "tolerancia": 1e-4,
+            "max_iter": 40,
+        })
+        sim_orig = Simulacion.objects.filter(escenario__tipo="ESTRES").latest("id")
+        total_antes = Simulacion.objects.count()
+
+        # Relanzar
+        response = self.client.post(f"/modulo-2/relanzar/{sim_orig.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertComponentUsed("Dashboard")
+
+        total_despues = Simulacion.objects.count()
+        self.assertEqual(total_despues, total_antes + 1)
+
+        sim_nueva = Simulacion.objects.latest("id")
+        self.assertNotEqual(sim_nueva.id, sim_orig.id)
+        self.assertEqual(sim_nueva.escenario.tipo, sim_orig.escenario.tipo)
+
+        # Tolerancia y max_iter coincidentes
+        ejec_orig = sim_orig.ejecuciones.first()
+        ejec_nueva = sim_nueva.ejecuciones.first()
+        self.assertEqual(ejec_nueva.tolerancia, ejec_orig.tolerancia)
+        self.assertEqual(ejec_nueva.max_iter, ejec_orig.max_iter)
+
+    def test_relanzar_404_no_crea_registros(self):
+        total_antes = Simulacion.objects.count()
+        response = self.client.post("/modulo-2/relanzar/999999/")
+        self.assertEqual(response.status_code, 404)
+        total_despues = Simulacion.objects.count()
+        self.assertEqual(total_despues, total_antes)
+
+    def test_persistencia_seis_entidades_y_sensibilidad_interpretacion(self):
+        import json
+        self.client.post("/modulo-2/ejecutar", {"escenario": "MAL_CONDICIONADO"})
+        sim = Simulacion.objects.filter(escenario__tipo="MAL_CONDICIONADO").latest("id")
+
+        # 1. CasoEstudio
+        self.assertIsNotNone(sim.escenario.caso)
+        # 2. Escenario
+        self.assertEqual(sim.escenario.tipo, "MAL_CONDICIONADO")
+        self.assertIn("sensibilidad", sim.escenario.parametros_json)
+        self.assertGreater(sim.escenario.parametros_json["sensibilidad"]["factor_amplificacion"], 100.0)
+
+        # 3. Simulacion
+        self.assertEqual(sim.estado, "COMPLETADO")
+
+        # 4. EjecucionMetodo
+        self.assertEqual(sim.ejecuciones.count(), 4)
+
+        for ejec in sim.ejecuciones.all():
+            # 5. IteracionResultado
+            self.assertTrue(ejec.iteraciones.exists())
+            # 6. ResultadoResumen con interpretacion doble
+            self.assertTrue(hasattr(ejec, "resumen"))
+            interp_dict = json.loads(ejec.resumen.interpretacion)
+            self.assertIn("numerica", interp_dict)
+            self.assertIn("caso", interp_dict)
+            self.assertIn("dominancia diagonal", interp_dict["caso"])
+            self.assertIn("SPD", interp_dict["caso"])
+
+    def test_props_dashboard_unificados_todas_las_rutas(self):
+        rutas = ["/", "/modulo-2/ejecutar"]
+        claves_esperadas = {"titulo", "modulos", "escenarios_disponibles", "escenarios_modulos", "corrida", "ultimas_simulaciones"}
+
+        for ruta in rutas:
+            response = self.client.get(ruta)
+            self.assertEqual(response.status_code, 200)
+            props = self.props()
+            self.assertTrue(claves_esperadas.issubset(set(props.keys())), f"Faltan claves en {ruta}")
 
 
 class MetodosNumericosTests(InertiaTestCase):

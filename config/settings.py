@@ -23,7 +23,7 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 if DEBUG:
     os.environ.setdefault("DJANGO_RUNSERVER_HIDE_WARNING", "true")
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]", "testserver"]
 
 
 # Application definition

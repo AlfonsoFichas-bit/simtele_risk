@@ -111,12 +111,16 @@ Evaluación transversal en todos los métodos bajo norma infinito:
 - **Residuo Numérico:** $R = \Vert A x_{\text{aprox}} - b\Vert_\infty$
 
 ### 4. Tres Escenarios Numéricos del Módulo 2
-- **NORMAL:** Matriz 4×4 SPD estrictamente diagonal dominante ($\kappa_\infty(A) \approx 3.14$). Convergencia rápida y monótona.
-- **ESTRÉS:** Matriz 4×4 SPD con acoplamiento uniforme y diagonal débilmente dominante. Mayor cantidad de iteraciones requeridas.
-- **MAL CONDICIONADO:** Matriz 4×4 SPD cuasi-singular con alto número de condición ($\kappa_\infty(A) > 1000$). Demuestra matemáticamente la diferencia entre sensibilidad intrínseca del problema y convergencia del algoritmo.
+- **NORMAL:** Matriz 4×4 SPD estrictamente diagonal dominante ($\kappa_\infty(A) \approx 3.14$). Convergencia rápida y monótona en todos los métodos.
+- **ESTRÉS:** Matriz 4×4 SPD con mayor acoplamiento inter-poleas y dominancia diagonal débil ($\kappa_\infty(A) = 7.0$). Ralentiza la tasa de contracción espectral de Jacobi y Gauss-Seidel, triplicando el número de iteraciones requeridas (52 vs 17 en normal) para alcanzar la tolerancia de parada.
+- **MAL CONDICIONADO:** Matriz 4×4 SPD cuasi-singular con número de condición $\kappa_\infty(A) = 792.0$ y vector consistente $b = A \cdot x^* = [4.935, 4.965, 4.955, 4.915]$. Evidencia la distinción clave entre la sensibilidad intrínseca del problema ante perturbaciones (amplificación de $\delta b$ superior a $490\times$) y la convergencia algorítmica: Jacobi y Gauss-Seidel no convergen por pérdida de dominancia diagonal, mientras que Gradiente Conjugado converge con exactitud al preservar la estructura Simétrica Definida Positiva (SPD).
 
-### 5. Persistencia y Recuperabilidad
-Todas las ejecuciones se registran íntegramente en las 6 tablas relacionales. El panel incluye una tabla inferior interactiva con las últimas 5 simulaciones y un botón de **Recargar Datos** que recupera el experimento histórico desde la base de datos sin necesidad de recalcular.
+> **Nota sobre el Entregable:** El documento PDF con los ejemplos resueltos a mano, deducciones analíticas de los cuatro modelos y tablas impresas de error se compila por separado como complemento de este aplicativo web.
+
+### 5. Persistencia, Recarga y Relanzamiento
+Todas las ejecuciones se registran íntegramente en las 6 tablas relacionales. El panel incluye una tabla inferior interactiva con las últimas 5 simulaciones y dos acciones:
+- **Recargar:** Recupera fielmente los parámetros, iteraciones y resultados de un experimento histórico desde la base de datos sin recalcular.
+- **Relanzar:** Re-ejecuta el algoritmo en el servidor con los mismos parámetros del registro histórico, creando una nueva simulación independiente en la BD.
 
 ---
 

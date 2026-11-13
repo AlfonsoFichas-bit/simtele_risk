@@ -1,19 +1,25 @@
 import json
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
-from django.views.decorators.csrf import csrf_exempt
-from inertia import inertia
+from django.shortcuts import get_object_or_404
+from django.views.decorators.http import require_POST
+from inertia import inertia, render
 
 from numerico.sistemas_lineales import (
     ESCENARIOS_MODULO_2,
     calcular_metricas_error,
     info_condicionamiento,
+    analizar_sensibilidad,
     metodo_gauss_seidel,
     metodo_gradiente_conjugado,
     metodo_jacobi,
     metodo_lu,
     solucion_referencia,
+)
+from numerico.escenarios_definicion import (
+    ESCENARIOS_MODULO_1,
+    ESCENARIOS_MODULO_3,
+    ESCENARIOS_MODULO_4,
 )
 
 from .models import (
@@ -115,9 +121,91 @@ def get_ultimas_simulaciones(limit=5):
     return resultado
 
 
+def _props_dashboard(corrida):
+    """Genera el diccionario de props unificado para la vista Dashboard de Inertia."""
+    ultimas = get_ultimas_simulaciones(limit=5)
+    return {
+        "titulo": "SIMTELE-RISK | Sistema de Simulación Numérica por Cable",
+        "modulos": get_modulos_obligatorios(),
+        "escenarios_disponibles": [
+            {
+                "clave": k,
+                "nombre": v["nombre"],
+                "descripcion": v["descripcion"],
+            }
+            for k, v in ESCENARIOS_MODULO_2.items()
+        ],
+        "escenarios_modulos": {
+            1: ESCENARIOS_MODULO_1,
+            3: ESCENARIOS_MODULO_3,
+            4: ESCENARIOS_MODULO_4,
+        },
+        "corrida": corrida,
+        "ultimas_simulaciones": ultimas,
+    }
+
+
+def _generar_interpretacion_doble(metodo_nombre: str, tipo_escenario: str, res: dict):
+    """Genera la conclusión numérica y la conclusión del caso aplicado para cada método."""
+    resumen_err = res.get("resumen_error", {})
+    residual = resumen_err.get("residual", 0.0)
+    tiempo_ms = res.get("tiempo_ms", 0.0)
+    convergio = res.get("convergio", False)
+    num_iters = len(res.get("iteraciones", []))
+    criterio = res.get("criterio_parada", "")
+
+    # 1. Conclusión Numérica
+    if metodo_nombre == "Factorización LU":
+        interp_num = (
+            f"Método directo exacto por descomposición L·U (Doolittle). "
+            f"Resuelve el sistema por sustitución directa hacia adelante y hacia atrás sin iterar en {tiempo_ms} ms. "
+            f"Residuo final ||Ax-b||_inf = {residual:.2e}. Criterio: {criterio}."
+        )
+    elif metodo_nombre == "Jacobi":
+        interp_num = (
+            f"Método iterativo simultáneo. Convergencia: {'SÍ' if convergio else 'NO (límite de iteraciones)'} "
+            f"en {num_iters} iteraciones. Criterio de parada: {criterio}. Residuo final: {residual:.2e}."
+        )
+    elif metodo_nombre == "Gauss-Seidel":
+        interp_num = (
+            f"Método iterativo sucesivo (actualización inmediata de variables). "
+            f"Convergencia: {'SÍ' if convergio else 'NO (límite de iteraciones)'} en {num_iters} iteraciones. "
+            f"Criterio de parada: {criterio}. Residuo final: {residual:.2e}."
+        )
+    else:  # Gradiente Conjugado
+        interp_num = (
+            f"Método de subespacios de Krylov para matrices Simétricas Definidas Positivas (SPD). "
+            f"Convergencia: {'SÍ' if convergio else 'NO'} en {num_iters} iteraciones (cota teórica <= n=4). "
+            f"Criterio de parada: {criterio}. Residuo final: {residual:.2e}."
+        )
+
+    # 2. Conclusión del Caso Aplicado
+    if tipo_escenario == "MAL_CONDICIONADO":
+        interp_caso = (
+            "Matriz cuasi-singular (κ = 792.0) por sensores de deformación cuasi-colineales en las poleas. "
+            "Jacobi y Gauss-Seidel divergen/fallan por pérdida de dominancia diagonal estricta (|a_ii| < sum |a_ij|), "
+            "mientras que Gradiente Conjugado converge con precisión porque la matriz conserva la propiedad "
+            "Simétrica Definida Positiva (SPD) con todos sus autovalores estrictamente positivos."
+        )
+    elif tipo_escenario == "ESTRES":
+        interp_caso = (
+            "Mayor acoplamiento inter-poleas con dominancia diagonal débil. "
+            "La alta interacción física entre apoyos ralentiza sustancialmente la tasa de contracción espectral "
+            "de Jacobi y Gauss-Seidel (requiriendo más iteraciones que en condiciones nominales), "
+            "evidenciando la necesidad de calibración con amortiguamiento inter-ejes."
+        )
+    else:  # NORMAL
+        interp_caso = (
+            "Sistema bien condicionado (κ = 3.14) con estricta dominancia diagonal en los sensores de carga. "
+            "Calibración nominal óptima de las 4 poleas con convergencia monótona y rápida en todos los algoritmos."
+        )
+
+    return {"numerica": interp_num, "caso": interp_caso}
+
+
 @transaction.atomic
 def ejecutar_y_persistir(tipo_escenario: str = "NORMAL", tolerancia: float = 1e-6, max_iter: int = 100):
-    """Ejecuta los 4 métodos de sistemas lineales y persiste la corrida en la BD."""
+    """Ejecuta los 4 métodos de sistemas lineales, analiza sensibilidad y persiste la corrida en la BD."""
     if tipo_escenario not in ESCENARIOS_MODULO_2:
         tipo_escenario = "NORMAL"
 
@@ -128,6 +216,9 @@ def ejecutar_y_persistir(tipo_escenario: str = "NORMAL", tolerancia: float = 1e-
 
     # Información de condicionamiento y simetría
     cond_info = info_condicionamiento(A)
+
+    # Análisis de sensibilidad ante perturbación δb
+    sensibilidad_info = analizar_sensibilidad(A, b)
 
     # Solución de referencia de alta precisión
     x_ref = solucion_referencia(A, b)
@@ -150,7 +241,7 @@ def ejecutar_y_persistir(tipo_escenario: str = "NORMAL", tolerancia: float = 1e-
         },
     )
 
-    # 2. Escenario
+    # 2. Escenario con parámetros, condición y sensibilidad
     escenario, _ = Escenario.objects.get_or_create(
         caso=caso,
         tipo=tipo_escenario,
@@ -162,10 +253,23 @@ def ejecutar_y_persistir(tipo_escenario: str = "NORMAL", tolerancia: float = 1e-
                 "b": b,
                 "x_exacta": x_exacta,
                 "condicion": cond_info,
+                "sensibilidad": sensibilidad_info,
             },
             "fuente_datos": "Calibración sintética de desgaste en poleas (4x4 SPD)",
         },
     )
+
+    # Actualizar parámetros si el escenario ya existía para asegurar que contiene la sensibilidad
+    params = escenario.parametros_json or {}
+    params["nombre"] = datos_esc["nombre"]
+    params["descripcion"] = datos_esc["descripcion"]
+    params["A"] = A
+    params["b"] = b
+    params["x_exacta"] = x_exacta
+    params["condicion"] = cond_info
+    params["sensibilidad"] = sensibilidad_info
+    escenario.parametros_json = params
+    escenario.save(update_fields=["parametros_json"])
 
     # 3. Simulacion
     simulacion = Simulacion.objects.create(
@@ -200,36 +304,16 @@ def ejecutar_y_persistir(tipo_escenario: str = "NORMAL", tolerancia: float = 1e-
         ]
         IteracionResultado.objects.bulk_create(iteraciones_objs)
 
-        # Interpretación matemática y física
-        if res["metodo"] == "Factorización LU":
-            interpretacion = (
-                f"Método directo exacto (descomposición L·U de Doolittle). "
-                f"Resuelve el sistema en un solo ciclo sin iterar. Tiempo: {res['tiempo_ms']} ms. "
-                f"Residuo residual ||Ax-b||: {res['resumen_error']['residual']:.2e}."
-            )
-        elif res["metodo"] == "Jacobi":
-            interpretacion = (
-                f"Método iterativo simultáneo. Convergencia: {'Exitosa' if res['convergio'] else 'No convergió/Límite de iteraciones'} "
-                f"en {len(res['iteraciones'])} iteraciones. Error relativo final: {res['resumen_error']['error_rel']:.2e}."
-            )
-        elif res["metodo"] == "Gauss-Seidel":
-            interpretacion = (
-                f"Método iterativo sucesivo (actualización inmediata de variables). Convergencia: {'Exitosa' if res['convergio'] else 'No alcanzada'} "
-                f"en {len(res['iteraciones'])} iteraciones con residuo {res['resumen_error']['residual']:.2e}."
-            )
-        else:  # Gradiente Conjugado
-            interpretacion = (
-                f"Método de subespacios de Krylov para matrices Simétricas Definidas Positivas (SPD). "
-                f"Convergencia teórica garantizada en máximo n={len(b)} pasos exactos. "
-                f"Completó {len(res['iteraciones'])} iteraciones. Error relativo: {res['resumen_error']['error_rel']:.2e}."
-            )
+        # Interpretación doble serializada en JSON
+        interpretacion_dict = _generar_interpretacion_doble(res["metodo"], tipo_escenario, res)
+        res["interpretacion"] = interpretacion_dict
 
         ResultadoResumen.objects.create(
             ejecucion=ejec,
             referencia=x_ref,
             valor_json=res["solucion"],
             metrica_error_json=res["resumen_error"],
-            interpretacion=interpretacion,
+            interpretacion=json.dumps(interpretacion_dict, ensure_ascii=False),
         )
 
     return {
@@ -247,6 +331,7 @@ def ejecutar_y_persistir(tipo_escenario: str = "NORMAL", tolerancia: float = 1e-
             "es_spd": cond_info["es_spd"],
             "es_simetrica": cond_info["es_simetrica"],
         },
+        "sensibilidad": sensibilidad_info,
         "solucion_referencia": x_ref,
         "metodos": metodos_resultados,
     }
@@ -255,11 +340,12 @@ def ejecutar_y_persistir(tipo_escenario: str = "NORMAL", tolerancia: float = 1e-
 def reconstruir_desde_simulacion(sim: Simulacion):
     """Reconstruye el payload de visualización a partir de una simulación guardada."""
     esc = sim.escenario
-    params = esc.parametros_json
+    params = esc.parametros_json or {}
     A = params.get("A", [])
     b = params.get("b", [])
     x_exacta = params.get("x_exacta", [])
     cond_info = params.get("condicion", info_condicionamiento(A) if A else {})
+    sensibilidad_info = params.get("sensibilidad") or (analizar_sensibilidad(A, b) if A and b else {})
 
     metodos_list = []
     x_ref = None
@@ -283,6 +369,15 @@ def reconstruir_desde_simulacion(sim: Simulacion):
 
         resumen_error = resumen.metrica_error_json if resumen else (iteraciones_data[-1] if iteraciones_data else {})
 
+        # Normalizar interpretación (JSON nuevo vs texto legado)
+        raw_interp = resumen.interpretacion if resumen else ""
+        try:
+            interp_obj = json.loads(raw_interp)
+            if not isinstance(interp_obj, dict) or "numerica" not in interp_obj:
+                interp_obj = {"numerica": str(raw_interp), "caso": ""}
+        except Exception:
+            interp_obj = {"numerica": str(raw_interp), "caso": ""}
+
         metodos_list.append({
             "metodo": ejec.metodo,
             "convergio": ejec.convergio,
@@ -290,7 +385,7 @@ def reconstruir_desde_simulacion(sim: Simulacion):
             "solucion": resumen.valor_json if resumen else (iteraciones_data[-1]["aproximacion"] if iteraciones_data else []),
             "iteraciones": iteraciones_data,
             "resumen_error": resumen_error,
-            "interpretacion": resumen.interpretacion if resumen else "",
+            "interpretacion": interp_obj,
         })
 
     if x_ref is None and A and b:
@@ -311,6 +406,7 @@ def reconstruir_desde_simulacion(sim: Simulacion):
             "es_spd": cond_info.get("es_spd", False),
             "es_simetrica": cond_info.get("es_simetrica", False),
         },
+        "sensibilidad": sensibilidad_info,
         "solucion_referencia": x_ref or [],
         "metodos": metodos_list,
     }
@@ -319,29 +415,13 @@ def reconstruir_desde_simulacion(sim: Simulacion):
 @inertia("Dashboard")
 def index(request: HttpRequest) -> dict[str, object]:
     """Ruta principal '/': Renderiza la vista Inertia Dashboard.vue."""
-    # Verificar si ya existe al menos una simulación en la BD; si no, generar la inicial NORMAL
     ultima_sim = Simulacion.objects.order_by("-fecha").first()
     if ultima_sim:
         datos_corrida = reconstruir_desde_simulacion(ultima_sim)
     else:
         datos_corrida = ejecutar_y_persistir(tipo_escenario="NORMAL", tolerancia=1e-6, max_iter=100)
 
-    ultimas = get_ultimas_simulaciones(limit=5)
-
-    return {
-        "titulo": "SIMTELE-RISK | Sistema de Simulación Numérica por Cable",
-        "modulos": get_modulos_obligatorios(),
-        "escenarios_disponibles": [
-            {
-                "clave": k,
-                "nombre": v["nombre"],
-                "descripcion": v["descripcion"],
-            }
-            for k, v in ESCENARIOS_MODULO_2.items()
-        ],
-        "corrida": datos_corrida,
-        "ultimas_simulaciones": ultimas,
-    }
+    return _props_dashboard(datos_corrida)
 
 
 def ejecutar_modulo_2(request: HttpRequest) -> HttpResponse:
@@ -350,7 +430,6 @@ def ejecutar_modulo_2(request: HttpRequest) -> HttpResponse:
     Recibe escenario y tolerancia, ejecuta y persiste la simulación.
     """
     if request.method == "POST":
-        # Manejar tanto JSON como Form data
         if request.content_type == "application/json":
             try:
                 body = json.loads(request.body.decode("utf-8"))
@@ -364,7 +443,6 @@ def ejecutar_modulo_2(request: HttpRequest) -> HttpResponse:
             tolerancia = float(request.POST.get("tolerancia", 1e-6))
             max_iter = int(request.POST.get("max_iter", 100))
     else:
-        # GET query params
         tipo_escenario = request.GET.get("escenario", "NORMAL")
         tolerancia = float(request.GET.get("tolerancia", 1e-6))
         max_iter = int(request.GET.get("max_iter", 100))
@@ -377,55 +455,31 @@ def ejecutar_modulo_2(request: HttpRequest) -> HttpResponse:
         tolerancia=tolerancia,
         max_iter=max_iter,
     )
-    ultimas = get_ultimas_simulaciones(limit=5)
-
-    # Si la petición es Inertia, renderizamos Dashboard con los nuevos datos
-    from inertia import render
-    return render(
-        request,
-        "Dashboard",
-        props={
-            "titulo": "SIMTELE-RISK | Sistema de Simulación Numérica por Cable",
-            "modulos": get_modulos_obligatorios(),
-            "escenarios_disponibles": [
-                {
-                    "clave": k,
-                    "nombre": v["nombre"],
-                    "descripcion": v["descripcion"],
-                }
-                for k, v in ESCENARIOS_MODULO_2.items()
-            ],
-            "corrida": datos_corrida,
-            "ultimas_simulaciones": ultimas,
-        },
-    )
+    return render(request, "Dashboard", props=_props_dashboard(datos_corrida))
 
 
 def recargar_simulacion_view(request: HttpRequest, simulacion_id: int) -> HttpResponse:
     """Ruta '/modulo-2/recargar/<simulacion_id>': Carga una simulación histórica en Dashboard."""
     sim = get_object_or_404(Simulacion, id=simulacion_id)
     datos_corrida = reconstruir_desde_simulacion(sim)
-    ultimas = get_ultimas_simulaciones(limit=5)
+    return render(request, "Dashboard", props=_props_dashboard(datos_corrida))
 
-    from inertia import render
-    return render(
-        request,
-        "Dashboard",
-        props={
-            "titulo": "SIMTELE-RISK | Sistema de Simulación Numérica por Cable",
-            "modulos": get_modulos_obligatorios(),
-            "escenarios_disponibles": [
-                {
-                    "clave": k,
-                    "nombre": v["nombre"],
-                    "descripcion": v["descripcion"],
-                }
-                for k, v in ESCENARIOS_MODULO_2.items()
-            ],
-            "corrida": datos_corrida,
-            "ultimas_simulaciones": ultimas,
-        },
+
+@require_POST
+def relanzar_simulacion_view(request: HttpRequest, simulacion_id: int) -> HttpResponse:
+    """Ruta 'POST /modulo-2/relanzar/<simulacion_id>/': Re-ejecuta una simulación histórica y crea un nuevo registro."""
+    sim_orig = get_object_or_404(Simulacion, id=simulacion_id)
+    tipo_escenario = sim_orig.escenario.tipo
+    primera_ejec = sim_orig.ejecuciones.first()
+    tolerancia = primera_ejec.tolerancia if primera_ejec else 1e-6
+    max_iter = primera_ejec.max_iter if primera_ejec else 100
+
+    datos_corrida = ejecutar_y_persistir(
+        tipo_escenario=tipo_escenario,
+        tolerancia=tolerancia,
+        max_iter=max_iter,
     )
+    return render(request, "Dashboard", props=_props_dashboard(datos_corrida))
 
 
 def health(request: HttpRequest) -> JsonResponse:

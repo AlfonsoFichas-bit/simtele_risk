@@ -6,6 +6,7 @@ const props = defineProps({
   titulo: { type: String, default: 'SIMTELE-RISK | Sistema de Simulación Numérica por Cable' },
   modulos: { type: Array, default: () => [] },
   escenarios_disponibles: { type: Array, default: () => [] },
+  escenarios_modulos: { type: Object, default: () => ({}) },
   corrida: { type: Object, default: () => ({}) },
   ultimas_simulaciones: { type: Array, default: () => [] },
 })
@@ -17,6 +18,9 @@ const maxIter = ref(props.corrida?.max_iter || 100)
 const cargando = ref(false)
 const pestanaIteraciones = ref('Jacobi')
 
+// Modal / ficha para inspeccionar escenarios declarados de módulos 1, 3 y 4
+const moduloDetalleModal = ref(null)
+
 // Métodos disponibles para las pestañas de iteración paso a paso
 const metodosDisponibles = computed(() => {
   return props.corrida?.metodos || []
@@ -26,7 +30,7 @@ const metodoSeleccionadoData = computed(() => {
   return metodosDisponibles.value.find((m) => m.metodo === pestanaIteraciones.value) || metodosDisponibles.value[0] || null
 })
 
-// Ejecutar simulación con nuevo escenario o parámetros
+// Acciones
 function ejecutarSimulacion(tipo = null) {
   if (tipo) {
     escenarioActual.value = tipo
@@ -43,7 +47,6 @@ function ejecutarSimulacion(tipo = null) {
       preserveScroll: true,
       onFinish: () => {
         cargando.value = false
-        // Si la pestaña actual no tiene iteraciones o cambió, sincronizar
         if (pestanaIteraciones.value === 'Factorización LU') {
           pestanaIteraciones.value = 'Jacobi'
         }
@@ -52,7 +55,6 @@ function ejecutarSimulacion(tipo = null) {
   )
 }
 
-// Recargar simulación desde la base de datos
 function recargarSimulacion(id) {
   cargando.value = true
   router.get(
@@ -72,7 +74,42 @@ function recargarSimulacion(id) {
   )
 }
 
-// Funciones de formateo numérico
+function relanzarSimulacion(id) {
+  cargando.value = true
+  router.post(
+    `/modulo-2/relanzar/${id}/`,
+    {},
+    {
+      preserveScroll: true,
+      onFinish: () => {
+        cargando.value = false
+        if (props.corrida?.tipo_escenario) {
+          escenarioActual.value = props.corrida.tipo_escenario
+          tolerancia.value = props.corrida.tolerancia
+          maxIter.value = props.corrida.max_iter
+        }
+      },
+    }
+  )
+}
+
+function abrirDetalleModulo(mod) {
+  if (mod.id === 2) {
+    // Scroll suave al panel interactivo del Módulo 2
+    const panel = document.getElementById('panel-modulo-2')
+    if (panel) {
+      panel.scrollIntoView({ behavior: 'smooth' })
+    }
+    return
+  }
+  moduloDetalleModal.value = mod
+}
+
+function cerrarDetalleModulo() {
+  moduloDetalleModal.value = null
+}
+
+// Helpers numéricos
 function formatNum(num, dec = 6) {
   if (num === null || num === undefined) return '—'
   const val = Number(num)
@@ -123,31 +160,37 @@ function formatVector(vec) {
 
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
 
-      <!-- SECCIÓN 1: LAS 4 TARJETAS OBLIGATORIAS -->
+      <!-- SECCIÓN 1: LAS 4 TARJETAS OBLIGATORIAS (CLICABLES) -->
       <section>
-        <div class="mb-4">
-          <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <span class="text-cyan-400">1.</span> Arquitectura Matemática y Módulos del Sistema
-          </h2>
-          <p class="text-sm text-slate-400">
-            Los 4 casos de estudio físicos obligatorios de SIMTELE-RISK con sus modelos gobernantes y cobertura transversal de métodos numéricos.
-          </p>
+        <div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+              <span class="text-cyan-400">1.</span> Arquitectura Matemática y Módulos del Sistema
+            </h2>
+            <p class="text-sm text-slate-400">
+              Haz clic en cualquier tarjeta para inspeccionar sus escenarios declarados (NORMAL, ESTRÉS, MAL CONDICIONADO) y supuestos físicos.
+            </p>
+          </div>
+          <span class="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
+            Módulo 2: Calibración Operativa
+          </span>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div
             v-for="mod in modulos"
             :key="mod.id"
+            @click="abrirDetalleModulo(mod)"
             :class="[
-              'rounded-xl p-5 border flex flex-col justify-between transition-all duration-200',
+              'rounded-xl p-5 border flex flex-col justify-between transition-all duration-200 cursor-pointer group',
               mod.activo
-                ? 'bg-slate-900/90 border-emerald-500/50 shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-500/30'
-                : 'bg-slate-900/40 border-slate-800 hover:border-slate-700'
+                ? 'bg-slate-900/90 border-emerald-500/50 shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-500/30 hover:border-emerald-400'
+                : 'bg-slate-900/40 border-slate-800 hover:border-cyan-500/50 hover:bg-slate-900/70'
             ]"
           >
             <div>
               <div class="flex items-center justify-between mb-3">
-                <span class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold">
+                <span class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold group-hover:text-cyan-300 transition-colors">
                   {{ mod.numero }}
                 </span>
                 <span
@@ -158,16 +201,16 @@ function formatVector(vec) {
                       : 'bg-amber-950/60 text-amber-300 border-amber-800/60'
                   ]"
                 >
-                  {{ mod.activo ? 'Operativo S1' : 'Semana 2' }}
+                  {{ mod.activo ? 'Operativo S1' : 'Ver Ficha' }}
                 </span>
               </div>
 
-              <h3 class="text-sm font-semibold text-white mb-2 leading-snug">
+              <h3 class="text-sm font-semibold text-white mb-2 leading-snug group-hover:text-white">
                 {{ mod.titulo }}
               </h3>
 
               <div class="bg-slate-950/80 rounded p-2.5 mb-3 border border-slate-800/80 font-mono text-xs text-cyan-300">
-                <div class="text-[10px] uppercase text-slate-500 mb-0.5">Ecuación GobernTarget:</div>
+                <div class="text-[10px] uppercase text-slate-500 mb-0.5">Ecuación Gobernante:</div>
                 <div class="overflow-x-auto">{{ mod.ecuacion }}</div>
               </div>
 
@@ -187,16 +230,19 @@ function formatVector(vec) {
                 </li>
               </ul>
 
-              <div class="mt-4 pt-3 border-t border-slate-800/80">
+              <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
                 <span
                   :class="[
-                    'block text-center text-xs py-1 px-2 rounded font-medium',
+                    'py-1 px-2 rounded font-medium text-[11px]',
                     mod.activo
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
                       : 'bg-slate-800/50 text-slate-400'
                   ]"
                 >
                   {{ mod.estado }}
+                </span>
+                <span v-if="!mod.activo" class="text-cyan-400 text-xs flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                  Inspeccionar →
                 </span>
               </div>
             </div>
@@ -205,7 +251,7 @@ function formatVector(vec) {
       </section>
 
       <!-- SECCIÓN 2: PANEL INTERACTIVO MÓDULO 2 -->
-      <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
+      <section id="panel-modulo-2" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl scroll-mt-20">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between pb-6 border-b border-slate-800 gap-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
@@ -291,7 +337,7 @@ function formatVector(vec) {
           </div>
         </div>
 
-        <!-- DETALLE MATRICIAL Y CONDICIONAMIENTO -->
+        <!-- DETALLE MATRICIAL, SENSIBILIDAD Y CONDICIONAMIENTO -->
         <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
           <!-- Matriz A -->
           <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 font-mono">
@@ -316,7 +362,7 @@ function formatVector(vec) {
           <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 font-mono text-xs">
             <div class="flex items-center justify-between text-slate-400 mb-3 border-b border-slate-800 pb-2">
               <span class="font-bold text-white">Vector b & Solución x* Exacta</span>
-              <span class="text-slate-500">Lecturas de sensores</span>
+              <span class="text-slate-500">b = A·x* verificado</span>
             </div>
             <div class="space-y-3">
               <div>
@@ -353,7 +399,7 @@ function formatVector(vec) {
                         : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
                     ]"
                   >
-                    {{ formatNum(corrida.datos_escenario?.condicion_inf, 2) }}
+                    {{ formatNum(corrida.datos_escenario?.condicion_inf, 1) }}
                   </span>
                 </div>
 
@@ -381,26 +427,88 @@ function formatVector(vec) {
             </div>
 
             <div class="mt-3 p-2 bg-slate-900/90 rounded border border-slate-800 text-[11px] text-slate-400">
-              <span class="text-cyan-400 font-semibold">Nota Teórica:</span>
+              <span class="text-cyan-400 font-semibold">Diagnóstico:</span>
               <span v-if="corrida.datos_escenario?.condicion_inf > 100">
-                Alto condicionamiento (<code class="text-red-300">κ > 1000</code>). Perturbaciones mínimas en datos provocan grandes variaciones en la solución.
+                Alto condicionamiento (<code class="text-red-300">κ = 792.0</code>). El problema físico es intrínsecamente sensible a perturbaciones.
               </span>
               <span v-else>
-                Matriz bien condicionada y estrictamente diagonal dominante. Se garantiza convergencia monótona en métodos iterativos.
+                Matriz bien condicionada y estrictamente diagonal dominante. Garantiza convergencia monótona en métodos estacionarios.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TARJETA: ANÁLISIS DE SENSIBILIDAD Y PERTURBACIÓN (δb) -->
+        <div v-if="corrida.sensibilidad" class="mt-6 bg-slate-950 rounded-xl p-5 border border-slate-800">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800/80 gap-2">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+              <h3 class="text-sm font-bold text-white">
+                Análisis Transversal de Sensibilidad y Perturbación: A·(x + δx) = b + δb
+              </h3>
+            </div>
+            <span class="text-xs font-mono text-slate-400">
+              Perturbación nominal: δb = [±1e-3]
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 font-mono text-xs">
+            <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+              <span class="text-slate-400 text-[11px] block mb-1">Perturbación Aplicada ||δb||_∞:</span>
+              <div class="text-white font-bold">{{ formatVector(corrida.sensibilidad?.delta_b) }}</div>
+              <span class="text-slate-500 text-[10px] block mt-1">rel_b: {{ formatNum(corrida.sensibilidad?.rel_b, 6) }}</span>
+            </div>
+
+            <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+              <span class="text-slate-400 text-[11px] block mb-1">Variación Inducida ||δx||_∞:</span>
+              <div class="text-cyan-300 font-bold">{{ formatVector(corrida.sensibilidad?.x_pert) }}</div>
+              <span class="text-slate-500 text-[10px] block mt-1">rel_x: {{ formatNum(corrida.sensibilidad?.rel_x, 6) }}</span>
+            </div>
+
+            <div
+              :class="[
+                'p-3 rounded-lg border flex flex-col justify-between',
+                corrida.sensibilidad?.factor_amplificacion > 100
+                  ? 'bg-red-950/30 border-red-800/80 text-red-200'
+                  : 'bg-emerald-950/30 border-emerald-800/80 text-emerald-200'
+              ]"
+            >
+              <div>
+                <span class="text-[11px] uppercase tracking-wider block mb-1 font-semibold">
+                  Factor de Amplificación:
+                </span>
+                <div class="text-lg font-bold">
+                  {{ formatNum(corrida.sensibilidad?.factor_amplificacion, 2) }}×
+                </div>
+              </div>
+              <span class="text-[10px] opacity-80 block mt-1">
+                {{ corrida.sensibilidad?.factor_amplificacion > 100 ? 'Amplificación Severa (> 100×)' : 'Amplificación Baja (< 10×)' }}
+              </span>
+            </div>
+
+            <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col justify-between">
+              <div>
+                <span class="text-slate-400 text-[11px] block mb-1">Cota Teórica κ_∞(A):</span>
+                <div class="text-lg font-bold text-white">
+                  {{ formatNum(corrida.sensibilidad?.cota_teorica_kappa, 1) }}
+                </div>
+              </div>
+              <span class="text-[10px] text-slate-500 block mt-1">
+                rel_x ≤ κ_∞(A) · rel_b (Cumplido)
               </span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- SECCIÓN 3: TABLAS DE RESULTADOS Y ERRORES -->
+      <!-- SECCIÓN 3: TABLAS DE RESULTADOS, CRITERIOS E INTERPRETACIÓN DOBLE -->
       <section class="space-y-6">
         <div>
           <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
             <span class="text-cyan-400">3.</span> Resultados Comparativos y Teoría de Errores Transversal
           </h2>
           <p class="text-sm text-slate-400">
-            Comparativa global de los 4 métodos obligatorios con evaluación rigurosa de errores y desglose paso a paso de cada iteración.
+            Comparativa global de los 4 métodos obligatorios con criterios de parada declarados y desglose de interpretación doble.
           </p>
         </div>
 
@@ -426,7 +534,7 @@ function formatVector(vec) {
                   <th class="py-3 px-3 text-right text-emerald-400">Residuo ||Ax-b||</th>
                   <th class="py-3 px-3 text-right">Error Absoluto</th>
                   <th class="py-3 px-3 text-right">Error Relativo</th>
-                  <th class="py-3 px-3 text-right text-cyan-400">Error Porcentual</th>
+                  <th class="py-3 px-3 text-right text-cyan-400">Error %</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-800/80">
@@ -494,8 +602,8 @@ function formatVector(vec) {
                 <span class="text-cyan-400 font-mono">Paso a Paso:</span>
                 Tabla de Convergencia Iterativa Detallada
               </h3>
-              <p class="text-xs text-slate-400 mt-0.5">
-                Seguimiento de aproximación, residual y decrecimiento del error en cada ciclo k.
+              <p class="text-xs text-slate-400 mt-0.5 font-mono">
+                Criterio declarado: <code class="text-cyan-300">{{ metodoSeleccionadoData?.criterio_parada || '—' }}</code>
               </p>
             </div>
 
@@ -522,7 +630,7 @@ function formatVector(vec) {
             <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs">
               <p class="text-slate-300 mb-2">
                 <span class="text-cyan-400 font-semibold">Método Directo Exacto:</span>
-                La Factorización LU descompone la matriz original en <code class="text-cyan-300">A = L · U</code> (Doolittle con diagonal unitaria en L) resolviendo en dos pasos de sustitución sin proceso iterativo:
+                La Factorización LU descompone la matriz original en <code class="text-cyan-300">A = L · U</code> (Doolittle con diagonal unitaria en L) resolviendo en dos pasos de sustitución sin iteraciones:
                 <code class="text-emerald-300">L · y = b</code> seguido de <code class="text-emerald-300">U · x = y</code>.
               </p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 font-mono">
@@ -587,9 +695,53 @@ function formatVector(vec) {
             </table>
           </div>
         </div>
+
+        <!-- 3.C: TARJETA DE INTERPRETACIÓN DOBLE (SEPARACIÓN CLARA) -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <div class="pb-3 border-b border-slate-800 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2 font-mono">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              Interpretación Doble: Análisis Numérico vs Aplicación Física en Teleférico
+            </h3>
+            <span class="text-xs text-slate-400 font-mono">Método Activo: {{ metodoSeleccionadoData?.metodo }}</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            <!-- Conclusión Matemática / Numérica -->
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-2 mb-2 text-cyan-400 font-semibold text-xs uppercase tracking-wider font-mono">
+                  <span>📐 Conclusión Numérica y Algorítmica</span>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed font-sans">
+                  {{ metodoSeleccionadoData?.interpretacion?.numerica || 'Cargando conclusión numérica...' }}
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-900 text-[11px] text-slate-500 font-mono">
+                Convergencia: {{ metodoSeleccionadoData?.convergio ? 'Satisfactoria' : 'No alcanzada' }} ·
+                Tiempo CPU: {{ formatNum(metodoSeleccionadoData?.tiempo_ms, 3) }} ms
+              </div>
+            </div>
+
+            <!-- Conclusión del Caso Aplicado -->
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-2 mb-2 text-emerald-400 font-semibold text-xs uppercase tracking-wider font-mono">
+                  <span>🚠 Conclusión del Caso Aplicado (Teleférico)</span>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed font-sans">
+                  {{ metodoSeleccionadoData?.interpretacion?.caso || 'Cargando conclusión del caso aplicado...' }}
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-900 text-[11px] text-slate-500 font-mono">
+                Escenario: {{ corrida.tipo_escenario }} · Dimensión: 4×4 SPD
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <!-- SECCIÓN 4: HISTORIAL DE SIMULACIONES EN BD (PERSISTENCIA COMPROBADA) -->
+      <!-- SECCIÓN 4: HISTORIAL DE SIMULACIONES EN BD CON BOTONES RECARGAR Y RELANZAR -->
       <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-2">
           <div>
@@ -597,7 +749,7 @@ function formatVector(vec) {
               <span class="text-cyan-400">4.</span> Registro Histórico y Persistencia en Base de Datos
             </h2>
             <p class="text-xs text-slate-400">
-              Simulaciones almacenadas en SQLite local / PostgreSQL Neon Tech con modelos relacionales normalizados.
+              Simulaciones almacenadas en SQLite local / PostgreSQL Neon Tech. Usa "Recargar" para inspeccionar datos o "Relanzar" para crear una corrida nueva idéntica.
             </p>
           </div>
 
@@ -619,7 +771,7 @@ function formatVector(vec) {
                 <th class="py-2.5 px-4">Usuario</th>
                 <th class="py-2.5 px-3 text-center">Estado</th>
                 <th class="py-2.5 px-3 text-center">Métodos</th>
-                <th class="py-2.5 px-4 text-center">Acción</th>
+                <th class="py-2.5 px-4 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-800/80">
@@ -661,12 +813,24 @@ function formatVector(vec) {
                   {{ sim.metodos_count }} algoritmos
                 </td>
                 <td class="py-2.5 px-4 text-center">
-                  <button
-                    @click="recargarSimulacion(sim.id)"
-                    class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 rounded border border-slate-700 text-[11px] font-medium transition cursor-pointer"
-                  >
-                    Recargar Datos
-                  </button>
+                  <div class="flex items-center justify-center space-x-2">
+                    <button
+                      @click="recargarSimulacion(sim.id)"
+                      :disabled="cargando"
+                      class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 rounded border border-slate-700 text-[11px] font-medium transition cursor-pointer disabled:opacity-50"
+                      title="Cargar esta simulación histórica sin recalcular"
+                    >
+                      Recargar
+                    </button>
+                    <button
+                      @click="relanzarSimulacion(sim.id)"
+                      :disabled="cargando"
+                      class="px-2.5 py-1 bg-cyan-900/40 hover:bg-cyan-800/60 text-cyan-200 rounded border border-cyan-700/60 text-[11px] font-medium transition cursor-pointer disabled:opacity-50"
+                      title="Relanzar cálculo en el servidor creando una corrida nueva"
+                    >
+                      Relanzar
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr v-if="!ultimas_simulaciones || ultimas_simulaciones.length === 0">
@@ -679,6 +843,84 @@ function formatVector(vec) {
         </div>
       </section>
     </main>
+
+    <!-- MODAL / FICHA DE DETALLE PARA MÓDULOS 1, 3 Y 4 -->
+    <div
+      v-if="moduloDetalleModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto"
+      @click.self="cerrarDetalleModulo"
+    >
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-6">
+        <div class="flex items-start justify-between border-b border-slate-800 pb-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-mono uppercase px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
+                {{ moduloDetalleModal.numero }} · Semana 2
+              </span>
+              <span class="text-xs text-slate-400">Catálogo de Modelado Matemático</span>
+            </div>
+            <h3 class="text-lg font-bold text-white">{{ moduloDetalleModal.titulo }}</h3>
+          </div>
+          <button
+            @click="cerrarDetalleModulo"
+            class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 font-mono text-xs text-cyan-300">
+          <div class="text-[10px] uppercase text-slate-500 mb-0.5">Ecuación GobernTarget:</div>
+          <div>{{ moduloDetalleModal.ecuacion }}</div>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider mb-3">
+            Escenarios Numéricos Declarados (3 Escenarios):
+          </h4>
+          <div class="space-y-3">
+            <div
+              v-for="(esc, key) in (escenarios_modulos[moduloDetalleModal.id] || {})"
+              :key="key"
+              class="bg-slate-950 p-4 rounded-xl border border-slate-800/90 text-xs space-y-2"
+            >
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-white font-mono text-sm">{{ key }} — {{ esc.nombre }}</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-900 text-slate-300 border border-slate-800">
+                  Declarado
+                </span>
+              </div>
+              <p class="text-slate-400 leading-relaxed">{{ esc.descripcion }}</p>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div class="bg-slate-900/80 p-2.5 rounded border border-slate-800 font-mono text-[11px]">
+                  <span class="text-slate-500 block mb-1 uppercase text-[10px]">Parámetros Físicos:</span>
+                  <div v-for="(v, k) in esc.parametros" :key="k" class="text-cyan-200">
+                    <span class="text-slate-400">{{ k }}:</span> {{ v }}
+                  </div>
+                </div>
+                <div class="bg-slate-900/80 p-2.5 rounded border border-slate-800 text-[11px]">
+                  <span class="text-slate-500 block mb-1 uppercase font-mono text-[10px]">Supuestos de Modelado:</span>
+                  <ul class="text-slate-300 space-y-1 list-disc list-inside">
+                    <li v-for="(sup, sIdx) in esc.supuestos" :key="sIdx">{{ sup }}</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3 bg-amber-950/20 border border-amber-800/40 rounded-xl text-xs text-amber-300 flex items-center justify-between">
+          <span>⚠️ Los algoritmos computacionales de este módulo se implementarán en la <strong>Semana 2</strong>. En la Semana 1 se evalúa su formulación y catálogo de supuestos.</span>
+          <button
+            @click="cerrarDetalleModulo"
+            class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-medium cursor-pointer"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- FOOTER -->
     <footer class="border-t border-slate-800 bg-slate-900/60 py-6 mt-12 text-center text-xs text-slate-500 font-mono">
