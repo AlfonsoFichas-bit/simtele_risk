@@ -15,6 +15,7 @@ const props = defineProps({
 const escenarioActual = ref(props.corrida?.tipo_escenario || 'NORMAL')
 const tolerancia = ref(props.corrida?.tolerancia || 1e-6)
 const maxIter = ref(props.corrida?.max_iter || 100)
+const searchQuery = ref('')
 const cargando = ref(false)
 const pestanaIteraciones = ref('Jacobi')
 
@@ -105,8 +106,73 @@ function abrirDetalleModulo(mod) {
   moduloDetalleModal.value = mod
 }
 
+function buscarHistorial() {
+  cargando.value = true
+  router.get(
+    '/modulo-2/buscar',
+    { q: searchQuery.value },
+    {
+      preserveScroll: true,
+      onFinish: () => {
+        cargando.value = false
+      },
+    }
+  )
+}
+
 function cerrarDetalleModulo() {
   moduloDetalleModal.value = null
+}
+
+// Helpers de gráficos
+const colorMetodo = (metodo) => {
+  if (metodo.includes('LU')) return '#a855f7'
+  if (metodo === 'Jacobi') return '#3b82f6'
+  if (metodo === 'Gauss-Seidel') return '#10b981'
+  if (metodo === 'Gradiente Conjugado') return '#f59e0b'
+  return '#64748b'
+}
+
+const convergenciaSeries = computed(() => {
+  return (props.corrida?.metodos || []).map((m) => ({
+    metodo: m.metodo,
+    puntos: (m.iteraciones || []).map((it) => ({ k: it.numero, r: Number(it.residual) || 0 })),
+  }))
+})
+
+const maxIterChart = computed(() => {
+  const vals = convergenciaSeries.value.map((s) => s.puntos.length)
+  return Math.max(1, ...vals)
+})
+
+const maxResidualChart = computed(() => {
+  const vals = convergenciaSeries.value.flatMap((s) => s.puntos.map((p) => p.r))
+  return Math.max(1e-12, ...vals)
+})
+
+const minResidualChart = 1e-12
+
+function seriePoints(serie) {
+  const maxK = maxIterChart.value
+  const maxR = maxResidualChart.value
+  return serie.puntos
+    .map((p) => {
+      const x = 10 + (p.k / maxK) * 380
+      const ratio = (Math.log10(Math.max(p.r, minResidualChart)) - Math.log10(minResidualChart)) /
+        (Math.log10(maxR) - Math.log10(minResidualChart) + 1e-12)
+      const y = 190 - ratio * 180
+      return `${x},${y}`
+    })
+    .join(' ')
+}
+
+const maxTiempoChart = computed(() => {
+  const vals = (props.corrida?.metodos || []).map((m) => Number(m.tiempo_ms) || 0)
+  return Math.max(1, ...vals)
+})
+
+function barraPorcentaje(valor) {
+  return ((Number(valor) || 0) / maxTiempoChart.value) * 100
 }
 
 // Helpers numéricos
@@ -129,7 +195,7 @@ function formatVector(vec) {
 <template>
   <div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-slate-950">
     <!-- BARRA SUPERIOR -->
-    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+    <header id="top" class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <div class="flex items-center space-x-3">
           <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-emerald-500 flex items-center justify-center font-bold text-white shadow-lg shadow-cyan-900/30">
@@ -159,6 +225,13 @@ function formatVector(vec) {
     </header>
 
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+      <nav class="flex flex-wrap gap-2 text-xs font-mono">
+        <a href="#top" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300">Inicio</a>
+        <a href="#panel-modulo-2" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300">Módulo</a>
+        <a href="#seccion-resultados" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300">Resultados</a>
+        <a href="#seccion-interpretacion" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300">Interpretación</a>
+        <a href="#seccion-historial" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300">Historial</a>
+      </nav>
 
       <!-- SECCIÓN 1: LAS 4 TARJETAS OBLIGATORIAS (CLICABLES) -->
       <section>
@@ -502,7 +575,7 @@ function formatVector(vec) {
       </section>
 
       <!-- SECCIÓN 3: TABLAS DE RESULTADOS, CRITERIOS E INTERPRETACIÓN DOBLE -->
-      <section class="space-y-6">
+      <section id="seccion-resultados" class="space-y-6">
         <div>
           <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
             <span class="text-cyan-400">3.</span> Resultados Comparativos y Teoría de Errores Transversal
@@ -591,6 +664,54 @@ function formatVector(vec) {
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- 3.G: GRÁFICOS DE CONVERGENCIA Y COMPARACIÓN -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 shadow-xl">
+            <h3 class="text-sm font-bold text-white mb-3 flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+              Convergencia: Residual vs Iteración
+            </h3>
+            <svg viewBox="0 0 400 200" class="w-full h-48 bg-slate-950 rounded border border-slate-800">
+              <line x1="10" y1="190" x2="390" y2="190" stroke="#334155" stroke-width="1" />
+              <line x1="10" y1="10" x2="10" y2="190" stroke="#334155" stroke-width="1" />
+              <polyline
+                v-for="serie in convergenciaSeries"
+                :key="serie.metodo"
+                :points="seriePoints(serie)"
+                fill="none"
+                :stroke="colorMetodo(serie.metodo)"
+                stroke-width="2"
+              />
+              <text x="200" y="198" fill="#64748b" font-size="8" text-anchor="middle">Iteración k</text>
+            </svg>
+            <div class="flex flex-wrap gap-3 mt-2 text-[10px] font-mono">
+              <span v-for="serie in convergenciaSeries" :key="serie.metodo" class="flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: colorMetodo(serie.metodo) }"></span>
+                {{ serie.metodo }}
+              </span>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 shadow-xl">
+            <h3 class="text-sm font-bold text-white mb-3 flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              Comparación de Métodos (Tiempo ms)
+            </h3>
+            <div class="space-y-2">
+              <div v-for="met in corrida.metodos" :key="met.metodo" class="flex items-center gap-2 text-xs font-mono">
+                <span class="w-32 truncate text-slate-300">{{ met.metodo }}</span>
+                <div class="flex-1 bg-slate-950 rounded h-4 overflow-hidden border border-slate-800">
+                  <div
+                    class="h-full"
+                    :style="{ width: barraPorcentaje(met.tiempo_ms) + '%', backgroundColor: colorMetodo(met.metodo) }"
+                  ></div>
+                </div>
+                <span class="w-16 text-right text-slate-400">{{ formatNum(met.tiempo_ms, 3) }}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -697,7 +818,7 @@ function formatVector(vec) {
         </div>
 
         <!-- 3.C: TARJETA DE INTERPRETACIÓN DOBLE (SEPARACIÓN CLARA) -->
-        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
+        <div id="seccion-interpretacion" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
           <div class="pb-3 border-b border-slate-800 flex items-center justify-between">
             <h3 class="text-sm font-bold text-white flex items-center gap-2 font-mono">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
@@ -742,7 +863,7 @@ function formatVector(vec) {
       </section>
 
       <!-- SECCIÓN 4: HISTORIAL DE SIMULACIONES EN BD CON BOTONES RECARGAR Y RELANZAR -->
-      <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
+      <section id="seccion-historial" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-2">
           <div>
             <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
@@ -754,6 +875,20 @@ function formatVector(vec) {
           </div>
 
           <div class="flex items-center gap-2">
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Buscar por ID o tipo"
+              class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white w-40 font-mono focus:outline-none focus:border-cyan-500"
+              @keyup.enter="buscarHistorial"
+            />
+            <button
+              @click="buscarHistorial"
+              :disabled="cargando"
+              class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded border border-slate-700 text-xs font-medium cursor-pointer disabled:opacity-50"
+            >
+              Buscar
+            </button>
             <span class="text-xs text-slate-400">Simulación Activa:</span>
             <span class="font-mono text-xs px-2.5 py-1 rounded bg-slate-800 text-cyan-400 font-bold border border-slate-700">
               #{{ corrida.simulacion_id }}
@@ -830,6 +965,13 @@ function formatVector(vec) {
                     >
                       Relanzar
                     </button>
+                    <a
+                      :href="`/modulo-2/exportar/${sim.id}/`"
+                      class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded border border-slate-700 text-[11px] font-medium transition"
+                      title="Exportar iteraciones y errores a CSV"
+                    >
+                      Exportar
+                    </a>
                   </div>
                 </td>
               </tr>

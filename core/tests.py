@@ -288,3 +288,17 @@ class MetodosNumericosTests(InertiaTestCase):
                 self.assertTrue(len(serialized) > 0)
                 json_completo = json.dumps(esc)
                 self.assertTrue(len(json_completo) > 0)
+
+    def test_escenarios_modulo_2_estructura_homogenea(self):
+        import json
+        tipos_esperados = {"NORMAL", "ESTRES", "MAL_CONDICIONADO"}
+        self.assertEqual(set(ESCENARIOS_MODULO_2.keys()), tipos_esperados)
+        for tipo, esc in ESCENARIOS_MODULO_2.items():
+            self.assertIn("nombre", esc)
+            self.assertIn("descripcion", esc)
+            self.assertIn("parametros", esc)
+            self.assertIn("supuestos", esc)
+            serialized = json.dumps(esc["parametros"])
+            self.assertTrue(len(serialized) > 0)
+            json_completo = json.dumps(esc)
+            self.assertTrue(len(json_completo) > 0)

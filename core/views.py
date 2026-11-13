@@ -1,3 +1,4 @@
+import csv
 import json
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -121,9 +122,10 @@ def get_ultimas_simulaciones(limit=5):
     return resultado
 
 
-def _props_dashboard(corrida):
+def _props_dashboard(corrida, ultimas=None):
     """Genera el diccionario de props unificado para la vista Dashboard de Inertia."""
-    ultimas = get_ultimas_simulaciones(limit=5)
+    if ultimas is None:
+        ultimas = get_ultimas_simulaciones(limit=5)
     return {
         "titulo": "SIMTELE-RISK | Sistema de Simulación Numérica por Cable",
         "modulos": get_modulos_obligatorios(),
@@ -436,16 +438,40 @@ def ejecutar_modulo_2(request: HttpRequest) -> HttpResponse:
             except Exception:
                 body = {}
             tipo_escenario = body.get("escenario", "NORMAL")
-            tolerancia = float(body.get("tolerancia", 1e-6))
-            max_iter = int(body.get("max_iter", 100))
+            try:
+                tolerancia = float(body.get("tolerancia", 1e-6))
+            except (TypeError, ValueError):
+                tolerancia = 1e-6
+            try:
+                max_iter = int(body.get("max_iter", 100))
+            except (TypeError, ValueError):
+                max_iter = 100
         else:
             tipo_escenario = request.POST.get("escenario", "NORMAL")
-            tolerancia = float(request.POST.get("tolerancia", 1e-6))
-            max_iter = int(request.POST.get("max_iter", 100))
+            try:
+                tolerancia = float(request.POST.get("tolerancia", 1e-6))
+            except (TypeError, ValueError):
+                tolerancia = 1e-6
+            try:
+                max_iter = int(request.POST.get("max_iter", 100))
+            except (TypeError, ValueError):
+                max_iter = 100
     else:
         tipo_escenario = request.GET.get("escenario", "NORMAL")
-        tolerancia = float(request.GET.get("tolerancia", 1e-6))
-        max_iter = int(request.GET.get("max_iter", 100))
+        try:
+            tolerancia = float(request.GET.get("tolerancia", 1e-6))
+        except (TypeError, ValueError):
+            tolerancia = 1e-6
+        try:
+            max_iter = int(request.GET.get("max_iter", 100))
+        except (TypeError, ValueError):
+            max_iter = 100
+
+    # Validación de parámetros
+    if tolerancia < 1e-12 or tolerancia > 1e-1:
+        tolerancia = 1e-6
+    if max_iter < 10 or max_iter > 1000:
+        max_iter = 100
 
     if tipo_escenario not in ESCENARIOS_MODULO_2:
         tipo_escenario = "NORMAL"
@@ -480,6 +506,65 @@ def relanzar_simulacion_view(request: HttpRequest, simulacion_id: int) -> HttpRe
         max_iter=max_iter,
     )
     return render(request, "Dashboard", props=_props_dashboard(datos_corrida))
+
+
+def buscar_simulaciones_view(request: HttpRequest) -> HttpResponse:
+    """Ruta '/modulo-2/buscar?q=...': filtra simulaciones por ID o tipo de escenario."""
+    q = (request.GET.get("q") or "").strip()
+
+    sims_qs = Simulacion.objects.select_related("escenario", "escenario__caso").order_by("-fecha")
+    if q:
+        if q.isdigit():
+            sims_qs = sims_qs.filter(id=int(q))
+        else:
+            sims_qs = sims_qs.filter(escenario__tipo__icontains=q.upper())
+
+    ultimas = []
+    for s in sims_qs[:20]:
+        ultimas.append({
+            "id": s.id,
+            "fecha": s.fecha.strftime("%Y-%m-%d %H:%M:%S"),
+            "escenario_tipo": s.escenario.tipo,
+            "escenario_nombre": s.escenario.get_tipo_display(),
+            "usuario": s.usuario,
+            "estado": s.estado,
+            "metodos_count": s.ejecuciones.count(),
+        })
+
+    ultima_sim = Simulacion.objects.order_by("-fecha").first()
+    if ultima_sim:
+        datos_corrida = reconstruir_desde_simulacion(ultima_sim)
+    else:
+        datos_corrida = ejecutar_y_persistir(tipo_escenario="NORMAL", tolerancia=1e-6, max_iter=100)
+
+    return render(request, "Dashboard", props=_props_dashboard(datos_corrida, ultimas))
+
+
+def exportar_simulacion_csv_view(request: HttpRequest, simulacion_id: int) -> HttpResponse:
+    """Ruta '/modulo-2/exportar/<simulacion_id>': exporta iteraciones y errores en CSV."""
+    sim = get_object_or_404(Simulacion, id=simulacion_id)
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="simulacion_{simulacion_id}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(["simulacion_id", "escenario", "metodo", "iteracion", "aproximacion", "residual", "error_abs", "error_rel", "error_porc"])
+
+    for ejec in sim.ejecuciones.prefetch_related("iteraciones").all():
+        for it in ejec.iteraciones.all():
+            writer.writerow([
+                sim.id,
+                sim.escenario.tipo,
+                ejec.metodo,
+                it.numero,
+                json.dumps(it.aproximacion_json),
+                it.residual,
+                it.error_abs,
+                it.error_rel,
+                round(it.error_rel * 100.0, 6),
+            ])
+
+    return response
 
 
 def health(request: HttpRequest) -> JsonResponse:

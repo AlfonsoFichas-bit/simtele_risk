@@ -424,6 +424,17 @@ ESCENARIOS_MODULO_2 = {
     "NORMAL": {
         "nombre": "Normal - Matriz SPD Diagonal Dominante",
         "descripcion": "Calibración de desgaste en 4 poleas con acoplamiento simétrico y estricta diagonal dominante.",
+        "parametros": {
+            "dimension": 4,
+            "tolerancia_default": 1e-6,
+            "max_iter_default": 100,
+            "kappa_esperado": 3.14,
+        },
+        "supuestos": [
+            "Matriz SPD estrictamente diagonal dominante para calibración nominal.",
+            "Vector b consistente con x* = [1.0, 2.0, 1.5, 0.5].",
+            "Condición numérica baja (κ∞ ≈ 3.14).",
+        ],
         "A": [
             [10.0, -1.0,  2.0,  0.0],
             [-1.0, 11.0, -1.0,  3.0],
@@ -436,6 +447,17 @@ ESCENARIOS_MODULO_2 = {
     "ESTRES": {
         "nombre": "Estrés - Matriz SPD Acoplada Uniforme",
         "descripcion": "Mayor acoplamiento inter-poleas con dominancia diagonal débil, lo que ralentiza la convergencia de los métodos estacionarios (Jacobi y Gauss-Seidel) requiriendo mayor número de iteraciones.",
+        "parametros": {
+            "dimension": 4,
+            "tolerancia_default": 1e-5,
+            "max_iter_default": 50,
+            "kappa_esperado": 7.0,
+        },
+        "supuestos": [
+            "Matriz SPD con dominancia diagonal débil por mayor acoplamiento.",
+            "Vector b consistente con x* = [1.0, 2.0, 1.5, 0.5].",
+            "Condición numérica moderada (κ∞ = 7.0).",
+        ],
         "A": [
             [4.0, 1.0, 1.0, 1.0],
             [1.0, 4.0, 1.0, 1.0],
@@ -448,6 +470,17 @@ ESCENARIOS_MODULO_2 = {
     "MAL_CONDICIONADO": {
         "nombre": "Mal Condicionado - Matriz SPD Casi Singular",
         "descripcion": "Sensores cuasi-colineales de deformación con alto número de condición κ∞(A) = 792.0 (matriz SPD casi singular).",
+        "parametros": {
+            "dimension": 4,
+            "tolerancia_default": 1e-6,
+            "max_iter_default": 100,
+            "kappa_esperado": 792.0,
+        },
+        "supuestos": [
+            "Matriz SPD casi singular por sensores cuasi-colineales.",
+            "Vector b consistente con x* = [1.0, 2.0, 1.5, 0.5].",
+            "Condición numérica elevada (κ∞ ≈ 792.0).",
+        ],
         "A": [
             [1.00, 0.99, 0.98, 0.97],
             [0.99, 1.00, 0.99, 0.98],

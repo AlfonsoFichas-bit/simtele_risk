@@ -183,6 +183,12 @@ python manage.py collectstatic --noinput
 
 ---
 
+## 📐 Condiciones de convergencia (recordatorio)
+
+- **Jacobi y Gauss-Seidel** requieren dominancia diagonal estricta (|a_ii| > Σ|a_ij|) para garantizar convergencia. En el escenario MAL CONDICIONADO la matriz es SPD pero no diagonal dominante, por lo que estos métodos no convergen.
+- **Gradiente Conjugado** requiere matriz Simétrica Definida Positiva (SPD). Conserva convergencia aunque el número de condición sea alto, porque la estructura SPD se mantiene.
+- **Mal condicionamiento ≠ falta de convergencia**: un sistema puede ser sensible a perturbaciones (κ elevado) y aun así converger algorítmicamente.
+
 ## 🧪 Pruebas Automatizadas
 
 El proyecto cuenta con suite de pruebas unitarias cubriendo la lógica matemática y las vistas Inertia:

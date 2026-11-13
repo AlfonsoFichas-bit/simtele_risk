@@ -8,5 +8,7 @@ urlpatterns = [
     path("modulo-2/ejecutar", views.ejecutar_modulo_2, name="ejecutar_modulo_2"),
     path("modulo-2/recargar/<int:simulacion_id>/", views.recargar_simulacion_view, name="recargar_simulacion"),
     path("modulo-2/relanzar/<int:simulacion_id>/", views.relanzar_simulacion_view, name="relanzar_simulacion"),
+    path("modulo-2/buscar", views.buscar_simulaciones_view, name="buscar_simulaciones"),
+    path("modulo-2/exportar/<int:simulacion_id>/", views.exportar_simulacion_csv_view, name="exportar_simulacion"),
     path("health", views.health, name="health"),
 ]
