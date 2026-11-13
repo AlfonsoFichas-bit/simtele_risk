@@ -10,9 +10,9 @@ from datetime import datetime
 
 import django
 from django.contrib import messages
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from inertia import always, inertia, once, optional
 
 _STARTED_AT = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -59,6 +59,12 @@ def home(request: HttpRequest) -> dict[str, object]:
             key="server-info",
         ),
     }
+
+
+@require_GET
+def health(request: HttpRequest) -> JsonResponse:
+    """Liveness probe used by dev tooling and deployments."""
+    return JsonResponse({"status": "ok"})
 
 
 @require_POST

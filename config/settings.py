@@ -16,6 +16,12 @@ SECRET_KEY = os.environ.get(
 
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 
+# `runserver` prints a "This is a development server" warning on every start.
+# Django exposes this env var to hide it. Keep the warning in production
+# (DEBUG=0) so nobody mistakes runserver for a real server.
+if DEBUG:
+    os.environ.setdefault("DJANGO_RUNSERVER_HIDE_WARNING", "true")
+
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
 
 

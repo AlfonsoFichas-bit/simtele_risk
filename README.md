@@ -58,6 +58,12 @@ Abre <http://127.0.0.1:8000>.
 > Con `DEBUG=1`, `{% vite_assets %}` apunta al servidor de Vite y añade el
 > cliente de HMR. Con `DEBUG=0`, lee `static/build/manifest.json`.
 
+> El aviso `WARNING: This is a development server...` de `runserver` se
+> oculta automáticamente en desarrollo mediante la variable oficial
+> `DJANGO_RUNSERVER_HIDE_WARNING` (ver `config/settings.py`). Con `DEBUG=0`
+> el aviso vuelve a mostrarse, para que nadie confunda `runserver` con un
+> servidor de producción.
+
 ## Producción
 
 ```bash
