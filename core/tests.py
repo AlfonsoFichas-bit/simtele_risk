@@ -15,6 +15,12 @@ from numerico.sistemas_lineales import (
     metodo_gradiente_conjugado,
     solucion_referencia,
     info_condicionamiento,
+    analizar_sensibilidad,
+)
+from numerico.escenarios_definicion import (
+    ESCENARIOS_MODULO_1,
+    ESCENARIOS_MODULO_3,
+    ESCENARIOS_MODULO_4,
 )
 
 
@@ -109,3 +115,101 @@ class MetodosNumericosTests(InertiaTestCase):
         res_gc = metodo_gradiente_conjugado(A, b, x_ref, tol=1e-5, max_iter=100)
         self.assertTrue(res_gc["convergio"])
         self.assertLess(res_gc["resumen_error"]["residual"], 1e-4)
+
+    def test_consistencia_b_igual_A_por_x_estrella(self):
+        import numpy as np
+        for clave, esc in ESCENARIOS_MODULO_2.items():
+            A = np.array(esc["A"], dtype=float)
+            b = np.array(esc["b"], dtype=float)
+            x_exacta = np.array(esc["x_exacta"], dtype=float)
+            diff = np.max(np.abs(A @ x_exacta - b))
+            self.assertLess(diff, 1e-10, f"Inconsistencia en {clave}: ||A @ x* - b|| = {diff}")
+
+    def test_factorizacion_lu_L_por_U_igual_A(self):
+        import numpy as np
+        for clave in ["NORMAL", "ESTRES"]:
+            esc = ESCENARIOS_MODULO_2[clave]
+            A = np.array(esc["A"], dtype=float)
+            b = np.array(esc["b"], dtype=float)
+            res_lu = metodo_lu(A, b, esc["x_exacta"])
+            self.assertTrue(res_lu["convergio"])
+            L = np.array(res_lu["L"], dtype=float)
+            U = np.array(res_lu["U"], dtype=float)
+            self.assertTrue(np.allclose(L @ U, A, atol=1e-4), f"L @ U != A en {clave}")
+
+    def test_analisis_sensibilidad_normal_y_mal_condicionado(self):
+        sens_norm = analizar_sensibilidad(
+            ESCENARIOS_MODULO_2["NORMAL"]["A"],
+            ESCENARIOS_MODULO_2["NORMAL"]["b"],
+        )
+        sens_mal = analizar_sensibilidad(
+            ESCENARIOS_MODULO_2["MAL_CONDICIONADO"]["A"],
+            ESCENARIOS_MODULO_2["MAL_CONDICIONADO"]["b"],
+        )
+
+        self.assertLess(sens_norm["factor_amplificacion"], 10.0)
+        self.assertGreater(sens_mal["factor_amplificacion"], 100.0)
+        self.assertAlmostEqual(sens_mal["cota_teorica_kappa"], 792.0, delta=0.5)
+
+    def test_criterio_parada_declarado(self):
+        esc = ESCENARIOS_MODULO_2["NORMAL"]
+        A, b, x_ref = esc["A"], esc["b"], esc["x_exacta"]
+
+        lu = metodo_lu(A, b, x_ref)
+        jac = metodo_jacobi(A, b, x_ref)
+        gs = metodo_gauss_seidel(A, b, x_ref)
+        gc = metodo_gradiente_conjugado(A, b, x_ref)
+
+        self.assertEqual(
+            lu["criterio_parada"],
+            "Método directo: sin criterio iterativo (sustitución L·y=b, U·x=y)",
+        )
+        self.assertEqual(jac["criterio_parada"], "||x^(k) - x^(k-1)||_inf < tol")
+        self.assertEqual(gs["criterio_parada"], "||x^(k) - x^(k-1)||_inf < tol")
+        self.assertEqual(gc["criterio_parada"], "||r^(k)||_2 < tol")
+
+    def test_fallo_seguro_pivote_nulo_y_diagonal_nula(self):
+        A_piv_nulo = [[0.0, 1.0], [1.0, 1.0]]
+        b_vec = [1.0, 2.0]
+        x_ref = [1.0, 1.0]
+
+        res_lu = metodo_lu(A_piv_nulo, b_vec, x_ref)
+        self.assertFalse(res_lu["convergio"])
+        self.assertIn("error", res_lu)
+        self.assertIn("Pivote nulo", res_lu["error"])
+
+        res_jac = metodo_jacobi(A_piv_nulo, b_vec, x_ref)
+        self.assertFalse(res_jac["convergio"])
+        self.assertIn("error", res_jac)
+        self.assertIn("diagonal nulo", res_jac["error"])
+
+        res_gs = metodo_gauss_seidel(A_piv_nulo, b_vec, x_ref)
+        self.assertFalse(res_gs["convergio"])
+        self.assertIn("error", res_gs)
+        self.assertIn("diagonal nulo", res_gs["error"])
+
+    def test_escenarios_declarativos_modulos_1_3_4(self):
+        import json
+        modulos = [
+            ("Módulo 1", ESCENARIOS_MODULO_1),
+            ("Módulo 3", ESCENARIOS_MODULO_3),
+            ("Módulo 4", ESCENARIOS_MODULO_4),
+        ]
+        tipos_esperados = {"NORMAL", "ESTRES", "MAL_CONDICIONADO"}
+
+        for nombre_mod, d in modulos:
+            self.assertEqual(
+                set(d.keys()),
+                tipos_esperados,
+                f"{nombre_mod} no contiene exactamente los tres tipos de escenario",
+            )
+            for tipo, esc in d.items():
+                self.assertIn("nombre", esc)
+                self.assertIn("descripcion", esc)
+                self.assertIn("parametros", esc)
+                self.assertIn("supuestos", esc)
+                # Serialización a JSON garantizada
+                serialized = json.dumps(esc["parametros"])
+                self.assertTrue(len(serialized) > 0)
+                json_completo = json.dumps(esc)
+                self.assertTrue(len(json_completo) > 0)
