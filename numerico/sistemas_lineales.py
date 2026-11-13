@@ -451,12 +451,12 @@ ESCENARIOS_MODULO_2 = {
             "dimension": 4,
             "tolerancia_default": 1e-5,
             "max_iter_default": 50,
-            "kappa_esperado": 7.0,
+            "kappa_esperado": 3.0,
         },
         "supuestos": [
             "Matriz SPD con dominancia diagonal débil por mayor acoplamiento.",
             "Vector b consistente con x* = [1.0, 2.0, 1.5, 0.5].",
-            "Condición numérica moderada (κ∞ = 7.0).",
+            "Condición numérica moderada (κ∞ ≈ 3.0).",
         ],
         "A": [
             [4.0, 1.0, 1.0, 1.0],

@@ -63,6 +63,7 @@ def get_modulos_obligatorios():
                 "Método de Gauss-Seidel",
                 "Gradiente Conjugado (SPD)",
                 "Solución Directa de Referencia",
+                "Raíces (Bisección, Newton, Secante) — Semana 2",
             ],
             "activo": True,
             "estado": "Módulo 2: Sistemas Lineales Operativo - Semana 1",
@@ -352,6 +353,13 @@ def reconstruir_desde_simulacion(sim: Simulacion):
     metodos_list = []
     x_ref = None
 
+    CRITERIOS_PARADA = {
+        "Factorización LU": "Método directo: sin criterio iterativo (sustitución L·y=b, U·x=y)",
+        "Jacobi": "||x^(k) - x^(k-1)||_inf < tol",
+        "Gauss-Seidel": "||x^(k) - x^(k-1)||_inf < tol",
+        "Gradiente Conjugado": "||r^(k)||_2 < tol",
+    }
+
     for ejec in sim.ejecuciones.select_related("resumen").prefetch_related("iteraciones").all():
         resumen = getattr(ejec, "resumen", None)
         if resumen and x_ref is None:
@@ -380,7 +388,20 @@ def reconstruir_desde_simulacion(sim: Simulacion):
         except Exception:
             interp_obj = {"numerica": str(raw_interp), "caso": ""}
 
-        metodos_list.append({
+        # Recuperar L y U para Factorización LU (recomputados a partir de la matriz persistida)
+        L_mat = None
+        U_mat = None
+        if ejec.metodo == "Factorización LU" and A and b:
+            try:
+                ref_para_lu = x_ref if x_ref is not None else (solucion_referencia(A, b) if A and b else [])
+                res_lu_rec = metodo_lu(A, b, ref_para_lu)
+                L_mat = res_lu_rec.get("L")
+                U_mat = res_lu_rec.get("U")
+            except Exception:
+                L_mat = None
+                U_mat = None
+
+        entrada_metodo = {
             "metodo": ejec.metodo,
             "convergio": ejec.convergio,
             "tiempo_ms": ejec.tiempo_ms,
@@ -388,7 +409,14 @@ def reconstruir_desde_simulacion(sim: Simulacion):
             "iteraciones": iteraciones_data,
             "resumen_error": resumen_error,
             "interpretacion": interp_obj,
-        })
+            "criterio_parada": CRITERIOS_PARADA.get(ejec.metodo, "—"),
+        }
+        if L_mat is not None:
+            entrada_metodo["L"] = L_mat
+        if U_mat is not None:
+            entrada_metodo["U"] = U_mat
+
+        metodos_list.append(entrada_metodo)
 
     if x_ref is None and A and b:
         x_ref = solucion_referencia(A, b)

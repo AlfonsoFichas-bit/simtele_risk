@@ -1012,7 +1012,7 @@ function formatVector(vec) {
         </div>
 
         <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 font-mono text-xs text-cyan-300">
-          <div class="text-[10px] uppercase text-slate-500 mb-0.5">Ecuación GobernTarget:</div>
+          <div class="text-[10px] uppercase text-slate-500 mb-0.5">Ecuación Gobernante:</div>
           <div>{{ moduloDetalleModal.ecuacion }}</div>
         </div>
 

@@ -1,0 +1,264 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage[top = 2.5cm, bottom = 2.5cm, left = 2.5cm, right = 2.5cm]{geometry} 
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{graphicx} 
+\usepackage{setspace}
+\setlength{\parindent}{0in}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\usepackage{array}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\footnotesize Métodos Numéricos: Avance Semana 1 (SIMTELE-RISK)}
+\rhead{\footnotesize R. Choque}
+\cfoot{\footnotesize \thepage} 
+
+\renewcommand{\figurename}{Figura}
+\renewcommand{\tablename}{Tabla}
+
+\begin{document}
+
+\thispagestyle{empty}
+
+\begin{tabular}{p{15.5cm}}
+{\large \bf Métodos Numéricos} \\
+Carrera de Informática.\\
+Universidad: Universidad Mayor de San Andres\\
+Entrega: Modelos, Errores y Sistemas Lineales (13/11/2026) \\
+Estudiantes: \\
+- Nombres\\
+- De los integrantes\\
+\hline
+\\
+\end{tabular}
+
+\vspace*{0.3cm}
+
+\begin{center}
+	{\Large \bf  Proyecto Integrador SIMTELE-RISK }
+	\vspace{2mm}
+	{\bf Avance Semana 1}
+		
+\end{center}  
+
+\section{Planteamiento Matemático de los Cuatro Módulos y Supuestos}
+
+Cada caso de estudio modela un fenómeno operativo sintético del sistema de transporte por cable inspirado en Mi Teleférico (La Paz), vinculando su formulación matemática, variables, unidades e hipótesis con las familias de métodos numéricos requeridas.
+
+\subsection{Módulo 1: Detención de Emergencia de Cabinas}
+\begin{itemize}
+    \item \textbf{Variables, parámetros y unidades:} Posición $x(t)$ ($\text{m}$), velocidad $v(t)$ ($\text{m/s}$), tiempo $t$ ($\text{s}$), velocidad inicial $v_0$ ($\text{m/s}$), desaceleración mecánica constante $a_0$ ($\text{m/s}^2$) y coeficiente de arrastre aerodinámico $k_f$ ($\text{s}^{-1}$).
+    \item \textbf{Supuestos del modelo:} Cable inextensible, pendiente uniforme en el tramo de frenado e inicio de actuación en $t=0$ tras el tiempo de reacción.
+    \item \textbf{Modelo matemático (EDO acoplada):}
+    \begin{equation}
+        \frac{dx}{dt} = v(t), \qquad \frac{dv}{dt} = -a(v,t) = -\left(a_0 + k_f v(t)\right), \qquad x(0)=x_0,\; v(0)=v_0
+    \end{equation}
+    \item \textbf{Caso analítico de referencia ($k_f = 0$, desaceleración constante $a_0 > 0$):}
+    \begin{equation}
+        v(t) = v_0 - a_0 t, \qquad x(t) = x_0 + v_0 t - \frac{1}{2}a_0 t^2, \qquad t_{\text{det}} = \frac{v_0}{a_0}, \qquad d_{\text{frenado}} = \frac{v_0^2}{2a_0}
+    \end{equation}
+    \item \textbf{Métodos asociados:} RK2 y RK4 (EDO); Trapecio compuesto, Simpson $1/3$ compuesto y Romberg (integración de $v(t)$); Bisección, Newton-Raphson y Secante (raíz de $v(t) = 0$).
+\end{itemize}
+
+\subsection{Módulo 2: Deterioro Mecánico y Mantenimiento}
+\begin{itemize}
+    \item \textbf{Variables, parámetros y unidades:} Índice adimensional de desgaste acumulado $D(t) \in [0, 100]$, tiempo de operación $t$ (semanas), desgaste base $D_0$, tasa lineal $\alpha$ ($\text{sem}^{-1}$), tasa cuadrática de fatiga $\beta$ ($\text{sem}^{-2}$) y umbral de inspección $D_{\text{umbral}}$. Para la calibración de cuatro poleas acopladas se resuelve el vector de pesos $x \in \mathbb{R}^4$.
+    \item \textbf{Supuestos del modelo:} Degradación monótona creciente sin reemplazo de piezas intermedio y acoplamiento elástico simétrico entre poleas que garantiza matriz Simétrica Definida Positiva (SPD).
+    \item \textbf{Modelo matemático (Raíces y Sistemas Lineales SPD):}
+    \begin{equation}
+        f(t) = D(t) - D_{\text{umbral}} = \left(D_0 + \alpha t + \beta t^2\right) - D_{\text{umbral}} = 0
+    \end{equation}
+    \begin{equation}
+        A x = b, \qquad A \in \mathbb{R}^{4 \times 4}, \quad A = A^T, \quad x^T A x > 0 \;\; \forall x \neq 0 \text{ (SPD)}
+    \end{equation}
+    \item \textbf{Caso analítico de referencia:} Raíz físicamente admisible ($t^* > 0$):
+    \begin{equation}
+        t^* = \frac{-\alpha + \sqrt{\alpha^2 - 4\beta(D_0 - D_{\text{umbral}})}}{2\beta}
+    \end{equation}
+    Para el sistema lineal se fija el vector exacto $x^* = [1.0,\; 2.0,\; 1.5,\; 0.5]^T$ y se construye $b = A x^*$.
+    \item \textbf{Métodos asociados:} Factorización LU, Jacobi, Gauss-Seidel y Gradiente Conjugado (sistemas lineales); Bisección, Newton-Raphson y Secante (raíces).
+\end{itemize}
+
+\subsection{Módulo 3: Oscilaciones por Viento}
+\begin{itemize}
+    \item \textbf{Variables, parámetros y unidades:} Desplazamiento lateral $x(t)$ ($\text{m}$), velocidad lateral $v(t)$ ($\text{m/s}$), carga de viento $F(t)$ ($\text{N}$), masa equivalente $m$ ($\text{kg}$), amortiguamiento viscoso $c$ ($\text{N}\cdot\text{s/m}$) y rigidez restauradora $k$ ($\text{N/m}$).
+    \item \textbf{Supuestos del modelo:} Péndulo linealizado para ángulos moderados y amortiguamiento proporcional a la velocidad.
+    \item \textbf{Modelo matemático (EDO de $2^\circ$ orden como sistema de $1^{\text{er}}$ orden):}
+    \begin{equation}
+        \frac{dx}{dt} = v, \qquad \frac{dv}{dt} = \frac{F(t) - c v - k x}{m}, \qquad x(0)=x_0,\; v(0)=v_0
+    \end{equation}
+    \item \textbf{Caso analítico de referencia ($F(t)=0$, régimen subamortiguado $\zeta < 1$):}
+    Con $\omega_0 = \sqrt{k/m}$, $\zeta = \frac{c}{2\sqrt{mk}}$ y $\omega_d = \omega_0\sqrt{1-\zeta^2}$:
+    \begin{equation}
+        x(t) = e^{-\zeta \omega_0 t}\left(C_1 \cos(\omega_d t) + C_2 \sin(\omega_d t)\right), \qquad E_{\text{acum}} = \int_{0}^{T} x(t)^2\,dt
+    \end{equation}
+    \item \textbf{Métodos asociados:} RK2 y RK4 (EDO); Trapecio compuesto, Simpson $1/3$ compuesto y Romberg (integración de energía acumulada).
+\end{itemize}
+
+\subsection{Módulo 4: Reconstrucción de Señales de Sensores}
+\begin{itemize}
+    \item \textbf{Variables, parámetros y unidades:} Instantes de muestreo $t_i$ ($\text{s}$) y lecturas de tensión $y_i$ ($\text{kN}$) para $i=0,\dots,n$.
+    \item \textbf{Supuestos del modelo:} Continuidad de la señal física entre muestras y pérdida aleatoria de paquetes de telemetría.
+    \item \textbf{Modelo matemático (Interpolación):}
+    \begin{equation}
+        P_n(t) = \sum_{i=0}^{n} y_i L_i(t) \quad (\text{Lagrange}), \qquad S_i(t) = a_i + b_i(t-t_i) + c_i(t-t_i)^2 + d_i(t-t_i)^3 \quad (\text{Spline})
+    \end{equation}
+    \item \textbf{Caso analítico de referencia:} Muestreo de $y(t) = \sin(t)$ e $y(t) = e^{-t}$, ocultando puntos intermedios conocidos para medir el error exacto de reconstrucción.
+    \item \textbf{Métodos asociados:} Lagrange, Diferencias Divididas de Newton y Splines Cúbicos naturales.
+\end{itemize}
+
+\section{Definición de los Doce Escenarios Experimentales ($3 \times 4$)}
+
+\begin{table}[H]
+\centering
+\scriptsize
+\begin{tabular}{>{\bfseries}p{2.2cm} p{4.0cm} p{4.0cm} p{4.0cm}}
+\toprule
+Módulo & Escenario NORMAL & Escenario ESTRÉS & Escenario MAL CONDICIONADO \\
+\midrule
+1. Detención de emergencia & $v_0=6.0\text{ m/s}$, $a_0=1.80\text{ m/s}^2$, $k_f=0.35$, paso $h=0.05\text{ s}$, $t_{\text{sim}}=5.0\text{ s}$. & $v_0=8.5\text{ m/s}$, $a_0=1.05\text{ m/s}^2$, $k_f=0.42$, paso $h=0.02\text{ s}$, $t_{\text{sim}}=9.0\text{ s}$. & $v_0=5.0\text{ m/s}$, $a_0=0.08\text{ m/s}^2$, $k_{\text{asint}}=0.02$, paso $h=0.01\text{ s}$, $t_{\text{sim}}=25.0\text{ s}$ (raíz casi múltiple). \\
+\midrule
+2. Deterioro y mantenimiento & Matriz $4\times 4$ SPD estrictamente diagonal dominante ($\kappa_\infty(A) = 3.1373$). & Matriz $4\times 4$ SPD acoplada uniforme ($\kappa_\infty(A) = 3.0000$) que ralentiza Jacobi. & Matriz $4\times 4$ SPD casi colineal ($\kappa_\infty(A) = 792.00$) sin dominancia diagonal. \\
+\midrule
+3. Oscilaciones por viento & Subamortiguada: $m=2800$, $c=420$, $k=8500$, $F_0=1200$, $\omega=0.85$, $h=0.05\text{ s}$, $T=20\text{ s}$. & Ráfagas: $m=3600$, $c=210$, $k=8200$, $F_0=3900$, $\omega=1.42$, $h=0.01\text{ s}$, $T=35\text{ s}$. & Resonancia: $m=3000$, $c=8$, $k=8400$, $F_0=1800$, $\omega=1.67332$, $h=0.005\text{ s}$, $T=40\text{ s}$. \\
+\midrule
+4. Señales de sensores & 7 nodos equiespaciados en $[0,6]$ sobre $y(t)=\text{lectura}$, ruido $0.01$. & 14 nodos con laguna de telemetría $[3.5,6.8]$ (35\% pérdida), ruido $0.05$. & 11 nodos en $[-1,1]$ con espaciamiento mínimo $0.002$ (fenómeno de Runge). \\
+\bottomrule
+\end{tabular}
+\caption{Matriz de definición de los 3 escenarios obligatorios para los 4 casos de estudio (alineada con el código).}
+\end{table}
+
+\section{Teoría de Errores Transversal y Análisis de Sensibilidad}
+
+Para toda aproximación $\tilde{x}$ respecto de la referencia exacta $x^*$, se evalúan transversalmente:
+\begin{align}
+    E_{\text{abs}} &= \|\tilde{x} - x^*\|_\infty, \qquad E_{\text{rel}} = \frac{\|\tilde{x} - x^*\|_\infty}{\|x^*\|_\infty}, \qquad E_{\%} = E_{\text{rel}} \times 100\%, \qquad R_{\text{res}} = \|A\tilde{x} - b\|_\infty
+\end{align}
+\textbf{Criterios de parada:} En Jacobi y Gauss-Seidel se detiene cuando $\|x^{(k)} - x^{(k-1)}\|_\infty < \text{tol}$; en Gradiente Conjugado cuando $\|r^{(k)}\|_2 < \text{tol}$.
+
+\textbf{Sensibilidad ante perturbaciones ($\delta b$):} Al perturbar el vector de términos independientes $b \to b + \delta b$, el cambio relativo en la solución $\tilde{x}$ cumple la cota teórica:
+\begin{equation}
+    \frac{\|\delta x\|_\infty}{\|x^*\|_\infty} \le \kappa_\infty(A) \frac{\|\delta b\|_\infty}{\|b\|_\infty}, \qquad \text{Factor de Amplificación Empírico } (\text{FA}) = \frac{\|\delta x\|_\infty / \|x^*\|_\infty}{\|\delta b\|_\infty / \|b\|_\infty}
+\end{equation}
+
+\section{Sistemas Lineales: Desarrollo Manual y Pruebas del Módulo 2}
+
+Para los tres escenarios se fija la solución exacta de referencia de las 4 poleas como:
+\begin{equation}
+    x^* = \begin{bmatrix} 1.0 & 2.0 & 1.5 & 0.5 \end{bmatrix}^T, \qquad \|x^*\|_\infty = 2.0
+\end{equation}
+
+\subsection{Matrices de los Tres Escenarios ($b = A x^*$ verificado)}
+\begin{itemize}
+    \item \textbf{Escenario NORMAL ($\kappa_\infty(A) = 3.1373$, SPD = Sí, estrictamente diagonal dominante):}
+    \begin{equation}
+        A_{\text{norm}} = \begin{bmatrix} 10 & -1 & 2 & 0 \\ -1 & 11 & -1 & 3 \\ 2 & -1 & 10 & -1 \\ 0 & 3 & -1 & 8 \end{bmatrix}, \qquad b_{\text{norm}} = \begin{bmatrix} 11.0 \\ 21.0 \\ 14.5 \\ 8.5 \end{bmatrix}
+    \end{equation}
+    \item \textbf{Escenario ESTRÉS ($\kappa_\infty(A) = 3.0000$, SPD = Sí, fuerte acoplamiento fuera de la diagonal):}
+    \begin{equation}
+        A_{\text{est}} = \begin{bmatrix} 4 & 1 & 1 & 1 \\ 1 & 4 & 1 & 1 \\ 1 & 1 & 4 & 1 \\ 1 & 1 & 1 & 4 \end{bmatrix}, \qquad b_{\text{est}} = \begin{bmatrix} 8.0 \\ 11.0 \\ 9.5 \\ 6.5 \end{bmatrix}
+    \end{equation}
+    \item \textbf{Escenario MAL CONDICIONADO ($\kappa_\infty(A) = 792.00$, SPD = Sí, filas casi colineales):}
+    \begin{equation}
+        A_{\text{mal}} = \begin{bmatrix} 1.00 & 0.99 & 0.98 & 0.97 \\ 0.99 & 1.00 & 0.99 & 0.98 \\ 0.98 & 0.99 & 1.00 & 0.99 \\ 0.97 & 0.98 & 0.99 & 1.00 \end{bmatrix}, \qquad b_{\text{mal}} = \begin{bmatrix} 4.935 \\ 4.965 \\ 4.955 \\ 4.915 \end{bmatrix}
+    \end{equation}
+\end{itemize}
+
+\subsection{Ejemplos Resueltos a Mano (Escenario NORMAL)}
+
+\textbf{1. Factorización LU de Doolittle ($A = L U$) y sustitución directa:}
+Aplicando eliminación gaussiana sin pivoteo sobre $A_{\text{norm}}$:
+\begin{equation}
+    L = \begin{bmatrix} 1 & 0 & 0 & 0 \\ -0.1 & 1 & 0 & 0 \\ 0.2 & -0.0734 & 1 & 0 \\ 0 & 0.2752 & -0.0817 & 1 \end{bmatrix}, \qquad
+    U = \begin{bmatrix} 10 & -1 & 2 & 0 \\ 0 & 10.9 & -0.8 & 3 \\ 0 & 0 & 9.5413 & -0.7798 \\ 0 & 0 & 0 & 7.1106 \end{bmatrix}
+\end{equation}
+Resolviendo $Ly = b_{\text{norm}}$ hacia adelante se obtiene $y = [11.0,\; 22.1,\; 13.9211,\; 3.5553]^T$. Resolviendo $Ux = y$ hacia atrás se recupera exactamente $x = [1.0,\; 2.0,\; 1.5,\; 0.5]^T$.
+
+\textbf{2. Primera iteración manual de Jacobi ($x^{(0)} = [0,0,0,0]^T$):}
+\begin{align*}
+    x_1^{(1)} &= 11.0/10 = 1.100000, \quad x_2^{(1)} = 21.0/11 = 1.909091, \quad x_3^{(1)} = 14.5/10 = 1.450000, \quad x_4^{(1)} = 8.5/8 = 1.062500
+\end{align*}
+Error absoluto en $k=1$: $E_{\text{abs}}^{(1)} = \|x^{(1)} - x^*\|_\infty = |1.0625 - 0.5| = 0.5625$ ($E_{\%} = 28.125\%$).
+
+\textbf{3. Primera iteración manual de Gauss-Seidel ($x^{(0)} = [0,0,0,0]^T$):}
+\begin{align*}
+    x_1^{(1)} &= 1.100000 \\
+    x_2^{(1)} &= (21.0 - (-1)(1.100000))/11 = 2.009091 \\
+    x_3^{(1)} &= (14.5 - 2(1.100000) - (-1)(2.009091))/10 = 1.430909 \\
+    x_4^{(1)} &= (8.5 - 3(2.009091) - (-1)(1.430909))/8 = 0.487955
+\end{align*}
+Error absoluto en $k=1$: $E_{\text{abs}}^{(1)} = \|x^{(1)} - x^*\|_\infty = |1.1000 - 1.0| = 0.1000$ ($E_{\%} = 5.00\%$).
+
+\subsection{Tablas Comparativas de Errores y Sensibilidad}
+
+\begin{table}[H]
+\centering
+\scriptsize
+\begin{tabular}{lccccccc}
+\toprule
+\textbf{Escenario / Método} & \textbf{Iter.} & \textbf{Sol. Aprox. $[x_1, x_2, x_3, x_4]$} & $\mathbf{E_{\text{abs}}}$ & $\mathbf{E_{\text{rel}}}$ & $\mathbf{E_{\%}}$ & \textbf{Residuo} & \textbf{Conv.} \\
+\midrule
+\multicolumn{8}{l}{\textbf{ESCENARIO 1: NORMAL} ($\kappa_\infty(A) = 3.1373$, SPD = Sí, $\text{tol}=10^{-6}$)} \\
+Factorización LU & 1 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $0.00 \times 10^{0}$ & Sí \\
+Jacobi & 17 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $1.70 \times 10^{-7}$ & $9.00 \times 10^{-8}$ & $9.00 \times 10^{-6}\%$ & $2.27 \times 10^{-6}$ & Sí \\
+Gauss-Seidel & 7 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $1.20 \times 10^{-7}$ & $6.00 \times 10^{-8}$ & $6.00 \times 10^{-6}\%$ & $1.05 \times 10^{-6}$ & Sí \\
+Gradiente Conjugado & 4 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $0.00 \times 10^{0}$ & Sí \\
+\midrule
+\multicolumn{8}{l}{\textbf{ESCENARIO 2: ESTRÉS} ($\kappa_\infty(A) = 3.0000$, SPD = Sí, mayor acoplamiento fuera de diagonal)} \\
+Factorización LU & 1 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $0.00 \times 10^{0}$ & Sí \\
+Jacobi & 52 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $4.00 \times 10^{-7}$ & $2.00 \times 10^{-7}$ & $2.00 \times 10^{-5}\%$ & $2.79 \times 10^{-6}$ & Sí \\
+Gauss-Seidel & 10 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $2.80 \times 10^{-7}$ & $1.40 \times 10^{-7}$ & $1.40 \times 10^{-5}\%$ & $1.00 \times 10^{-6}$ & Sí \\
+Gradiente Conjugado & 2 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $0.00 \times 10^{0}$ & Sí \\
+\midrule
+\multicolumn{8}{l}{\textbf{ESCENARIO 3: MAL CONDICIONADO} ($\kappa_\infty(A) = 792.00$, SPD = Sí, sin dominancia diagonal)} \\
+Factorización LU & 1 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $0.00 \times 10^{0}$ & Sí \\
+Jacobi & 26 & Diverge (overflow) & $>10^{10}$ & $>10^{10}$ & $>10^{12}\%$ & $>10^{10}$ & \textbf{No} \\
+Gauss-Seidel & 100 & $[1.000807, 2.132507, 1.431187, 0.437485]$ & $1.33 \times 10^{-1}$ & $6.63 \times 10^{-2}$ & $6.63\%$ & $3.92 \times 10^{-3}$ & \textbf{No} \\
+Gradiente Conjugado & 4 & $[1.000000, 2.000000, 1.500000, 0.500000]$ & $0.00 \times 10^{0}$ & $0.00 \times 10^{0}$ & $0.00\%$ & $2.00 \times 10^{-8}$ & Sí \\
+\bottomrule
+\end{tabular}
+\caption{Resultados experimentales de los 4 métodos sobre los 3 escenarios del Módulo 2 (valores reales del programa).}
+\end{table}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Escenario} & $\mathbf{\kappa_\infty(A)}$ & \textbf{Perturbación $\|\delta b\|_\infty / \|b\|_\infty$} & \textbf{Efecto $\|\delta x\|_\infty / \|x^*\|_\infty$} & \textbf{Amplificación Empírica (FA)} \\
+\midrule
+1. NORMAL & $3.1373$ & $4.76 \times 10^{-5}$ & $4.87 \times 10^{-5}$ & $1.02\times$ \\
+2. ESTRÉS & $3.0000$ & $9.09 \times 10^{-5}$ & $1.67 \times 10^{-4}$ & $1.83\times$ \\
+3. MAL CONDICIONADO & $792.0000$ & $2.01 \times 10^{-4}$ & $1.00 \times 10^{-1}$ ($10.0\%$) & $\mathbf{496.5\times}$ \\
+\bottomrule
+\end{tabular}
+\caption{Análisis experimental de sensibilidad ante una perturbación alternada $\delta b = [\pm 10^{-3}]$ en las lecturas.}
+\end{table}
+
+\textbf{Doble Interpretación (Módulo 2):}
+\begin{itemize}
+    \item \textit{Conclusión Numérica:} Se comprueba la diferencia conceptual entre \textbf{mal condicionamiento} y \textbf{falta de convergencia}. En el escenario 3 ($\kappa_\infty(A)=792$), Jacobi diverge por overflow en la iteración 26 porque el radio espectral de su matriz de iteración supera la unidad ($\rho(T_J) \approx 2.95 > 1$) al perderse la dominancia diagonal, y Gauss-Seidel sufre estancamiento severo ($6.63\%$ de error a las 100 iteraciones pese a un residuo pequeño de $3.92\times 10^{-3}$). En cambio, el Gradiente Conjugado converge en 4 iteraciones porque depende de que $A$ sea SPD y no de la dominancia diagonal. Por otro lado, la Tabla 3 demuestra la sensibilidad: un ruido minúsculo de $0.02\%$ en el vector $b$ se amplifica $496.5$ veces en la solución del escenario mal condicionado, alterando los pesos en un $10.0\%$.
+    \item \textit{Conclusión del Problema Aplicado:} Si los sensores ubicados en las poleas del teleférico registran mediciones casi colineales (sensores redundantes muy próximos entre sí), pequeñas vibraciones o errores de lectura de milésimas distorsionan drásticamente la estimación de carga por polea, pudiendo ocultar el desgaste real o disparar falsas alarmas de mantenimiento.
+\end{itemize}
+
+\section{Arquitectura de Base de Datos (Modelo Relacional)}
+
+El esquema relacional implementado en Django ORM (SQLite3 local y PostgreSQL en Neon Tech) comprende las seis entidades obligatorias verificadas mediante migraciones y pruebas automatizadas:
+\begin{enumerate}
+    \item \texttt{caso\_estudio}(\underline{id}, nombre, modelo\_version, descripcion)
+    \item \texttt{escenario}(\underline{id}, \textit{caso\_id}, tipo, parametros\_json, fuente\_datos)
+    \item \texttt{simulacion}(\underline{id}, \textit{escenario\_id}, fecha, usuario, estado)
+    \item \texttt{ejecucion\_metodo}(\underline{id}, \textit{simulacion\_id}, metodo, tolerancia, paso, max\_iter, convergio, tiempo\_ms)
+    \item \texttt{iteracion\_resultado}(\underline{id}, \textit{ejecucion\_id}, numero, aproximacion\_json, residual, error\_abs, error\_rel)
+    \item \texttt{resultado\_resumen}(\underline{id}, \textit{ejecucion\_id}, referencia, valor\_json, metrica\_error\_json, interpretacion)
+\end{enumerate}
+
+\end{document}
