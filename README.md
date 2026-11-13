@@ -1,131 +1,192 @@
-# SIMTELE Risk
+# SIMTELE-RISK | Sistema de Simulación Numérica para Teleféricos Urbanos
 
-Starter de **Django + Inertia.js v3 + Vue 3 + Tailwind CSS 4** con Vite.
+Plataforma computacional para la evaluación de riesgos operacionales y análisis numérico en sistemas de transporte por cable aéreo (teleféricos). Proyecto desarrollado para la asignatura de **Métodos Numéricos** en la carrera de **Ingeniería Informática**.
 
-Todo se ejecuta **desde la raíz del repositorio**: no hace falta entrar a
-`frontend/` ni a ninguna otra carpeta.
+---
 
+## 🚀 Arquitectura Tecnológica
+
+El sistema implementa un stack moderno full-stack reactivo sin dependencias de APIs REST desconectadas:
+
+- **Backend:** Python 3.12+ con **Django 6.1**
+- **Capa SPA / Adaptador:** **Inertia.js v3** (`inertia-django` 2.0)
+- **Frontend:** **Vue 3** (Composition API, `<script setup>`) + Vite 7
+- **Diseño & UI:** **Tailwind CSS 4** con paleta de monitoreo industrial oscuro
+- **Motor Matemático:** Módulo desacoplado en `numerico/sistemas_lineales.py` con NumPy para estructuras tensoriales y algoritmos numéricos implementados paso a paso
+- **Base de Datos:**
+  - **Local (Desarrollo):** SQLite 3 nativo
+  - **Producción (Cloud):** PostgreSQL en **Neon Tech** serverless mediante variable de entorno `DATABASE_URL` y `dj-database-url`
+
+---
+
+## 📊 Diagrama Entidad-Relación (DER)
+
+El modelo de datos almacena la trazabilidad completa de cada experimento numérico (parámetros de entrada, escenarios de perturbación, tiempo de CPU, convergencia y desglose de iteraciones paso a paso).
+
+```mermaid
+erDiagram
+    CASO_ESTUDIO ||--o{ ESCENARIO : "tiene"
+    ESCENARIO ||--o{ SIMULACION : "ejecuta"
+    SIMULACION ||--o{ EJECUCION_METODO : "contiene"
+    EJECUCION_METODO ||--o{ ITERACION_RESULTADO : "registra pasos"
+    EJECUCION_METODO ||--|| RESULTADO_RESUMEN : "consolida"
+
+    CASO_ESTUDIO {
+        int id PK
+        string nombre
+        string modelo_version
+        text descripcion
+    }
+
+    ESCENARIO {
+        int id PK
+        int caso_id FK
+        string tipo "NORMAL | ESTRES | MAL_CONDICIONADO"
+        json parametros_json "Matriz A, vector b, x_ref, kappa(A)"
+        string fuente_datos
+    }
+
+    SIMULACION {
+        int id PK
+        int escenario_id FK
+        datetime fecha
+        string usuario
+        string estado "COMPLETADO"
+    }
+
+    EJECUCION_METODO {
+        int id PK
+        int simulacion_id FK
+        string metodo "LU | Jacobi | Gauss-Seidel | Gradiente Conjugado"
+        float tolerancia
+        float paso
+        int max_iter
+        boolean convergio
+        float tiempo_ms
+    }
+
+    ITERACION_RESULTADO {
+        int id PK
+        int ejecucion_id FK
+        int numero
+        json aproximacion_json "Vector x^(k)"
+        float residual "Norma ||Ax - b||_inf"
+        float error_abs "Norma ||x - x*||_inf"
+        float error_rel
+    }
+
+    RESULTADO_RESUMEN {
+        int id PK
+        int ejecucion_id FK
+        json referencia "Vector x*"
+        json valor_json "Vector final x"
+        json metrica_error_json
+        text interpretacion
+    }
 ```
-.
-├── config/            # configuración de Django
-├── core/              # vistas, rutas y {% vite_assets %}
-├── frontend/          # código Vue + Tailwind (sin package.json propio)
-│   ├── main.ts        # entrypoint de Inertia
-│   ├── tailwind.css   # entrada de Tailwind v4
-│   ├── app.css        # tema y capa base
-│   ├── env.d.ts
-│   └── pages/         # páginas de Inertia
-├── static/build/      # salida de `npm run build` (ignorada por git)
-├── templates/
-│   ├── layout.html    # layout HTML que carga los assets
-│   └── inertia.html   # formato de primera carga de Inertia v3
-├── manage.py
-├── package.json       # scripts y dependencias del frontend
-├── tsconfig.json
-└── vite.config.ts
-```
 
-## Requisitos
+---
 
-- Python 3.12+ y Django 6.1
-- Node.js 20+ (o Bun)
-- Un entorno virtual de Python
+## 🎯 Alcance Implementado (Semana 1)
 
-## Puesta en marcha
+### 1. Cuatro Módulos Físicos Obligatorios
+1. **Detención de Emergencia de Cabinas:** Modelado cinemático y dinámico de desaceleración ante frenado de emergencia ($dx/dt = v$, $dv/dt = -a(v, t)$). Métodos: EDO (RK2, RK4), Integración (Trapecio, Simpson 1/3, Romberg), Raíces ($v(t)=0$).
+2. **Deterioro Mecánico y Mantenimiento (Operativo en Semana 1):** Calibración multivariable de desgaste en 4 poleas acopladas ($A x = b$) mediante matrices Simétricas Definidas Positivas (SPD) y análisis de vida útil residual ($D(t) - D_{\text{umbral}} = 0$).
+3. **Oscilaciones por Viento:** Dinámica vibratoria bajo ráfagas laterales ($m x'' + c x' + k x = F(t)$). Métodos: EDO e Integración.
+4. **Reconstrucción de Señales de Sensores:** Recuperación de telemetría perdida en torres intermedias ($P_n(x) = \sum y_i L_i(x)$ o Splines Cúbicos).
 
-Desde la raíz del repositorio:
+### 2. Algoritmos de Sistemas Lineales ($A x = b$, tamaño 4×4)
+- **Factorización LU:** Método directo exacto con descomposición de Doolittle ($A = L \cdot U$) con $L$ triangular inferior unitaria y sustitución sucesiva hacia adelante y hacia atrás.
+- **Método de Jacobi:** Algoritmo iterativo simultáneo con descomposición diagonal.
+- **Método de Gauss-Seidel:** Algoritmo iterativo sucesivo con actualización inmediata de componentes de la solución.
+- **Gradiente Conjugado:** Algoritmo sobre subespacios de Krylov optimizado para matrices SPD.
+- **Solución Directa de Referencia:** Cálculo de alta precisión para comparación formal.
+- **Número de Condición:** $\kappa_\infty(A) = \Vert A\Vert_\infty \cdot \Vert A^{-1}\Vert_\infty$ e identificación de simetría y autovalores positivos (SPD).
 
+### 3. Teoría de Errores Transversal
+Evaluación transversal en todos los métodos bajo norma infinito:
+- **Error Absoluto:** $E_{\text{abs}} = \Vert x_{\text{aprox}} - x_{\text{ref}}\Vert_\infty$
+- **Error Relativo:** $E_{\text{rel}} = \frac{\Vert x_{\text{aprox}} - x_{\text{ref}}\Vert_\infty}{\Vert x_{\text{ref}}\Vert_\infty}$
+- **Error Porcentual:** $E_{\%} = E_{\text{rel}} \times 100\%$
+- **Residuo Numérico:** $R = \Vert A x_{\text{aprox}} - b\Vert_\infty$
+
+### 4. Tres Escenarios Numéricos del Módulo 2
+- **NORMAL:** Matriz 4×4 SPD estrictamente diagonal dominante ($\kappa_\infty(A) \approx 3.14$). Convergencia rápida y monótona.
+- **ESTRÉS:** Matriz 4×4 SPD con acoplamiento uniforme y diagonal débilmente dominante. Mayor cantidad de iteraciones requeridas.
+- **MAL CONDICIONADO:** Matriz 4×4 SPD cuasi-singular con alto número de condición ($\kappa_\infty(A) > 1000$). Demuestra matemáticamente la diferencia entre sensibilidad intrínseca del problema y convergencia del algoritmo.
+
+### 5. Persistencia y Recuperabilidad
+Todas las ejecuciones se registran íntegramente en las 6 tablas relacionales. El panel incluye una tabla inferior interactiva con las últimas 5 simulaciones y un botón de **Recargar Datos** que recupera el experimento histórico desde la base de datos sin necesidad de recalcular.
+
+---
+
+## 🛠️ Instalación y Puesta en Marcha
+
+### Prerrequisitos
+- Python 3.12 o superior
+- Node.js 20+ o Bun
+- Git
+
+### 1. Clonar el repositorio y configurar el entorno virtual
 ```bash
-# 1. Dependencias de Python
+# Crear entorno virtual
 python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate     # macOS / Linux
+
+# Activar en Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+# O en Git Bash / Linux / macOS:
+# source .venv/bin/activate
+
+# Instalar dependencias backend
 pip install -r requirements.txt
+```
 
-# 2. Base de datos
+### 2. Configurar Base de Datos y Migraciones
+Por defecto el sistema utiliza SQLite local (`db.sqlite3`). Para usar PostgreSQL (Neon Tech), defina la variable `DATABASE_URL`:
+```bash
+# Opcional para Neon Postgres:
+# $env:DATABASE_URL="postgres://usuario:password@ep-xyz.neon.tech/neondb?sslmode=require"
+
+python manage.py makemigrations
 python manage.py migrate
+```
 
-# 3. Dependencias del frontend
-npm install                     # o: bun install
+### 3. Instalar dependencias del Frontend
+```bash
+npm install
+```
 
-# 4. Desarrollo: dos terminales, ambas en la raíz
-npm run dev                     # Vite en http://127.0.0.1:5173
+### 4. Compilar y Ejecutar en Desarrollo
+Ejecuta dos terminales en la raíz del proyecto:
+
+**Terminal 1 (Vite HMR):**
+```bash
+npm run dev
+```
+
+**Terminal 2 (Django Server):**
+```bash
 python manage.py runserver 127.0.0.1:8000
 ```
 
-Abre <http://127.0.0.1:8000>.
+Accede desde tu navegador a: **`http://127.0.0.1:8000`**
 
-> Con `DEBUG=1`, `{% vite_assets %}` apunta al servidor de Vite y añade el
-> cliente de HMR. Con `DEBUG=0`, lee `static/build/manifest.json`.
-
-> El aviso `WARNING: This is a development server...` de `runserver` se
-> oculta automáticamente en desarrollo mediante la variable oficial
-> `DJANGO_RUNSERVER_HIDE_WARNING` (ver `config/settings.py`). Con `DEBUG=0`
-> el aviso vuelve a mostrarse, para que nadie confunda `runserver` con un
-> servidor de producción.
-
-## Producción
-
+### 5. Compilación para Producción
 ```bash
-npm run build                   # genera static/build/
+npm run build
 python manage.py collectstatic --noinput
 ```
 
-O simplemente `./build.sh` (usa Bun si está disponible y, si no, npm).
+---
 
-Variables de entorno útiles:
+## 🧪 Pruebas Automatizadas
 
-| Variable             | Por defecto              | Uso                                   |
-| -------------------- | ------------------------ | ------------------------------------- |
-| `DJANGO_SECRET_KEY`  | clave de desarrollo      | clave real en producción              |
-| `DJANGO_DEBUG`       | `1`                      | `0` para servir el build de Vite      |
-| `VITE_DEV_SERVER`    | `http://127.0.0.1:5173`  | URL del servidor de Vite en desarrollo |
-
-## Scripts
-
-| Comando             | Qué hace                                      |
-| ------------------- | --------------------------------------------- |
-| `npm run dev`       | Servidor de Vite con HMR                      |
-| `npm run build`     | Build de producción en `static/build/`        |
-| `npm run preview`   | Sirve el build localmente                     |
-| `npm run typecheck` | `tsc --noEmit`                                |
-
-## Cómo funciona
-
-- Django renderiza `templates/inertia.html`, que extiende `layout.html`.
-- `layout.html` carga `{% vite_assets %}`, una etiqueta propia en
-  `core/templatetags/vite.py`. En desarrollo devuelve el `<script>` del entry
-  de Vite; en producción lee el manifest y emite el CSS y el JS con hash.
-- `frontend/main.ts` monta Inertia y resuelve las páginas desde
-  `frontend/pages/**/*.vue`.
-- Las vistas usan `@inertia("Home")`; el diccionario que devuelven son los
-  props de la página. El ejemplo incluye `always()`, `once()` y `optional()`,
-  recarga parcial, CSRF y mensajes flash.
-
-### Añadir una página
-
-1. Crea la vista:
-
-   ```python
-   @inertia("Module/Index")
-   def index(request):
-       return {"title": "Módulo 1"}
-   ```
-
-2. Crea `frontend/pages/Module/Index.vue`.
-
-No hay que tocar `vite.config.ts`: el glob de `main.ts` descubre la página.
-
-## Pruebas
-
+El proyecto cuenta con suite de pruebas unitarias cubriendo la lógica matemática y las vistas Inertia:
 ```bash
-python manage.py test -v 2
+python manage.py test
 ```
-
-## Notas de estilo
-
-- El CSS es **100% Tailwind**. `frontend/app.css` solo declara tokens con
-  `@theme` y una capa `base`; las utilidades viven en los componentes.
-- `tailwind.css` usa `source(none)` y declara explícitamente qué escanear
-  (`frontend/` y `templates/`), así no se cuelan clases de `docs/` ni de
-  `static/build/`.
+Resultados verificados:
+- Renderizado de componentes Inertia (`Dashboard.vue`)
+- Integridad de persistencia en las 6 tablas relacionales
+- Convergencia de métodos numéricos (LU, Jacobi, Gauss-Seidel, Gradiente Conjugado)
+- Recarga de simulaciones históricas
